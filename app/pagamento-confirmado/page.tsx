@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Container,
   Box,
@@ -15,7 +15,6 @@ import {
   CardContent,
   List,
   ListItem,
-  ListItemIcon,
   ListItemText,
 } from "@mui/material"
 import { Icon } from "@iconify/react"
@@ -31,7 +30,7 @@ type OrderData = {
   paidAt: string
 }
 
-export default function PagamentoConfirmadoPage() {
+function PagamentoConfirmadoContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -45,20 +44,11 @@ export default function PagamentoConfirmadoPage() {
   })
 
   useEffect(() => {
-    // TODO: Substituir este mock por:
-    // const orderId = new URLSearchParams(window.location.search).get("orderId")
-    // if (orderId) {
-    //   fetch(`/api/orders/${orderId}`)
-    //     .then(res => res.json())
-    //     .then(data => setOrder(data))
-    //     .catch(err => console.error("Erro ao carregar pedido:", err))
-    // }
-
-    // Para agora, usar dados mockados
     const orderId = searchParams.get("orderId")
     if (orderId) {
       console.log("[v0] orderId from URL:", orderId)
-      // Aqui entrará o fetch real do pedido
+      // FUTURAMENTE: buscar pedido real aqui
+      // fetch(`/api/orders/${orderId}`)...
     }
   }, [searchParams])
 
@@ -114,7 +104,7 @@ export default function PagamentoConfirmadoPage() {
           <Typography variant="h6" fontWeight={600} gutterBottom>
             Resumo do seu pedido
           </Typography>
-          
+
           <Divider sx={{ my: 2 }} />
 
           <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -213,7 +203,6 @@ export default function PagamentoConfirmadoPage() {
             <Typography variant="body2" color="text.secondary">
               Em breve seus números aparecerão aqui automaticamente.
             </Typography>
-            {/* TODO: Aqui será mostrada a lista dos números reais do banco de dados quando integrado */}
           </Box>
         </Paper>
 
@@ -291,7 +280,8 @@ export default function PagamentoConfirmadoPage() {
                     Combo Sorte
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Ganhe 50 números extras por um preço especial. Oferta válida apenas para novos clientes!
+                    Ganhe 50 números extras por um preço especial. Oferta válida apenas
+                    para novos clientes!
                   </Typography>
                   <Button
                     variant="contained"
@@ -333,7 +323,8 @@ export default function PagamentoConfirmadoPage() {
                     Turbo Premium
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Acesso exclusivo a sorteios VIP com prêmios maiores e frequência diferenciada.
+                    Acesso exclusivo a sorteios VIP com prêmios maiores e frequência
+                    diferenciada.
                   </Typography>
                   <Button
                     variant="contained"
@@ -359,5 +350,13 @@ export default function PagamentoConfirmadoPage() {
         </Alert>
       </Container>
     </Box>
+  )
+}
+
+export default function PagamentoConfirmadoPage() {
+  return (
+    <Suspense fallback={<div>Carregando informações do pagamento...</div>}>
+      <PagamentoConfirmadoContent />
+    </Suspense>
   )
 }
