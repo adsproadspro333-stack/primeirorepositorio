@@ -88,7 +88,10 @@ export default function PagamentoPage() {
 
   // 2) Geração do PIX (com trava pra não duplicar)
   useEffect(() => {
-    const customerData = localStorage.getItem("checkoutCustomer")
+    const customerData =
+      typeof window !== "undefined"
+        ? localStorage.getItem("checkoutCustomer")
+        : null
 
     if (!customerData) {
       router.replace("/dados")
@@ -96,7 +99,12 @@ export default function PagamentoPage() {
     }
 
     // se ainda não temos valor ou quantidade, não faz nada
-    if (!resolved.qty || resolved.qty <= 0 || !resolved.amount || resolved.amount <= 0) {
+    if (
+      !resolved.qty ||
+      resolved.qty <= 0 ||
+      !resolved.amount ||
+      resolved.amount <= 0
+    ) {
       return
     }
 
@@ -107,7 +115,6 @@ export default function PagamentoPage() {
     const generatePix = async () => {
       try {
         const customer = JSON.parse(customerData)
-
         const totalInCentsToSend = Math.round(resolved.amount * 100)
 
         const response = await fetch("/api/pagamento/pix", {
@@ -128,12 +135,38 @@ export default function PagamentoPage() {
         })
 
         const data = await response.json()
-        if (!data.ok) {
+
+        if (!response.ok || data.error) {
           throw new Error(data.error || "Falha ao gerar PIX")
         }
 
-        setPixPayload(data.pixCopiaECola || "")
-        setTransactionId(data.transactionId)
+        // ------------------------------
+        // 🎯 Parser robusto para a resposta da API
+        // ------------------------------
+        const copiaECola: string | null =
+          data.pixCopiaECola ??
+          data.copia_e_cola ??
+          data.pix?.copiaECola ??
+          data.pix?.copia_e_cola ??
+          data.qr_code ??
+          null
+
+        // (mantemos isso caso queira usar o QR em base64 futuramente)
+        const qrBase64: string | null =
+          data.qrCodeBase64 ??
+          data.qr_code_base64 ??
+          data.pix?.qrCodeBase64 ??
+          null
+
+        if (!copiaECola) {
+          console.error("Resposta da API PIX sem copia e cola:", data, qrBase64)
+          throw new Error(
+            "PIX gerado, mas o código de pagamento não foi retornado pela API.",
+          )
+        }
+
+        setPixPayload(copiaECola)
+        setTransactionId(data.transactionId || data.id || null)
         setLoading(false)
       } catch (err: any) {
         console.error("Erro ao gerar PIX:", err)
@@ -193,7 +226,9 @@ export default function PagamentoPage() {
 
   const handleCopyPixCode = async () => {
     if (!pixPayload) {
-      setSnackbarMessage("Ainda estamos gerando o código PIX, aguarde alguns segundos.")
+      setSnackbarMessage(
+        "Ainda estamos gerando o código PIX, aguarde alguns segundos.",
+      )
       setSnackbarSeverity("error")
       setSnackbarOpen(true)
       return
@@ -214,7 +249,9 @@ export default function PagamentoPage() {
 
   const handleOpenQRCode = () => {
     if (!pixPayload) {
-      setSnackbarMessage("Ainda estamos gerando o QR Code, aguarde alguns segundos.")
+      setSnackbarMessage(
+        "Ainda estamos gerando o QR Code, aguarde alguns segundos.",
+      )
       setSnackbarSeverity("error")
       setSnackbarOpen(true)
       return
