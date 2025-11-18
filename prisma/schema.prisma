@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  cpf       String   @unique
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model Order {
+  id          String        @id @default(uuid())
+  userId      String
+  amount      Float
+  status      String        @default("pending") // pending, paid, canceled
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+  tickets      Ticket[]
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  orderId   String
+  value     Float
+  status    String   @default("pending") // pending, paid, failed
+  gatewayId String?  // ID retornado pelo gateway
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id])
+}
+
+model Ticket {
+  id        String   @id @default(uuid())
+  orderId   String
+  number    Int
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id])
+}
