@@ -19,12 +19,11 @@ export async function POST(req: Request) {
     // -----------------------------
     let totalInCents = Number(body?.totalInCents ?? 0)
 
-    // Se veio como string ou número quebrado, normaliza
     if (!Number.isFinite(totalInCents)) {
       totalInCents = 0
     }
 
-    // Fallbacks em caso de não vir totalInCents (não deveria acontecer, mas deixamos à prova de falha)
+    // Fallbacks de segurança
     if (!totalInCents || totalInCents <= 0) {
       const rawAmount = body?.amountInCents ?? body?.amount
       const amountNum = Number(rawAmount)
@@ -32,7 +31,6 @@ export async function POST(req: Request) {
       if (Number.isFinite(amountNum) && amountNum > 0) {
         totalInCents = Math.round(amountNum)
       } else if (quantity > 0) {
-        // último fallback: 0,10 por número (caso extremo)
         totalInCents = quantity * UNIT_PRICE_CENTS
       }
     }
@@ -49,7 +47,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // Número mínimo de cotas (apenas para controle; valor é o totalInCents calculado)
+    // Número mínimo apenas para controle de cópia/descrição
     const effectiveQty = Math.max(quantity, MIN_NUMBERS)
 
     const amountInCents = Math.round(totalInCents)
@@ -113,7 +111,7 @@ export async function POST(req: Request) {
       },
     })
 
-    // (Opcional) grava números específicos
+    // Se vierem números específicos, grava
     if (Array.isArray(body.numbers) && body.numbers.length > 0) {
       await prisma.ticket.createMany({
         data: body.numbers.map((n: number) => ({
@@ -153,9 +151,53 @@ export async function POST(req: Request) {
 
     console.log("RESPOSTA ATIVOPAY (createPixTransaction):", resp)
 
-    const pixCopiaECola = resp.pixCopiaECola || ""
-    const qrCodeBase64 = resp.qrCodeBase64 || null
-    const expiresAt = resp.expiresAt || null
+    // ----------------------------------------------------------------
+    // 4.1️⃣ Normaliza os campos, independente do formato da resposta
+    // ----------------------------------------------------------------
+    const data = (resp as any)?.data ?? resp
+
+    const pixCopiaECola =
+      (resp as any).pixCopiaECola ||
+      data?.pixCopiaECola ||
+      data?.payload || // AtivoPay costuma chamar assim
+      ""
+
+    const qrCodeBase64 =
+      (resp as any).qrCodeBase64 ||
+      data?.qrCodeBase64 ||
+      data?.qrCode ||
+      null
+
+    const expiresAt =
+      (resp as any).expiresAt ||
+      data?.expiresAt ||
+      data?.expirationDate ||
+      null
+
+    const gatewayId =
+      (resp as any).transactionId ||
+      data?.transactionId ||
+      data?.id ||
+      ""
+
+    const transactionStatus =
+      (resp as any).status || data?.status || "pending"
+
+    // Se por algum motivo ainda não tiver o payload, devolve erro amigável
+    if (!pixCopiaECola) {
+      console.error(
+        "❌ AtivoPay não retornou payload/pixCopiaECola. Resposta completa:",
+        resp,
+      )
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "PIX gerado no gateway, mas o código de pagamento não foi retornado pela API.",
+        },
+        { status: 502 },
+      )
+    }
 
     // -----------------------------
     // 5️⃣ Salva a transação ligada ao pedido
@@ -164,8 +206,8 @@ export async function POST(req: Request) {
       data: {
         orderId: order.id,
         value: amountInCents / 100,
-        status: resp.status || "pending",
-        gatewayId: resp.transactionId || "",
+        status: transactionStatus,
+        gatewayId,
       },
     })
 
