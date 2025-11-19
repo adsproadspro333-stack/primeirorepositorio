@@ -11,7 +11,7 @@ type TransactionDTO = {
 
 type OrderDTO = {
   id: string
-  publicCode: string
+  displayOrderCode: string   // 👈 bate com o campo que vem da API
   amount: number
   status: string
   createdAt: string | null
@@ -225,7 +225,7 @@ export default function MinhasComprasPage() {
                   >
                     ID do pedido:{" "}
                     <span style={{ fontWeight: 600, color: "#111827" }}>
-                      {order.publicCode}
+                      {order.displayOrderCode}
                     </span>
                   </div>
 
@@ -260,7 +260,9 @@ export default function MinhasComprasPage() {
                       {formatDateTime(order.createdAt)}
                     </div>
                     <div>
-                      <span style={{ fontWeight: 600 }}>Qtde de números: </span>
+                      <span style={{ fontWeight: 600 }}>
+                        Qtde de números:{" "}
+                      </span>
                       {qtdNumeros}
                     </div>
                   </div>
