@@ -1,3 +1,4 @@
+// app/api/transaction-status/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
@@ -6,16 +7,25 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
 
-    if (!id) {
+    // protege contra valores ruins: ?, id=undefined, id=null
+    if (!id || id === "undefined" || id === "null") {
       return NextResponse.json(
         { ok: false, error: "transaction id obrigatório" },
         { status: 400 },
       )
     }
 
-    const transaction = await prisma.transaction.findUnique({
-      where: { id },
-      include: { order: true },
+    // tenta achar tanto pelo id interno quanto pelo gatewayId
+    const transaction = await prisma.transaction.findFirst({
+      where: {
+        OR: [
+          { id },
+          { gatewayId: id },
+        ],
+      },
+      include: {
+        order: true,
+      },
     })
 
     if (!transaction) {
