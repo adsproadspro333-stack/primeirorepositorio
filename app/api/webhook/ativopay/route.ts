@@ -8,23 +8,24 @@ const PAID_STATUSES = ["PAID", "APPROVED", "CONFIRMED"]
 
 export async function POST(req: Request) {
   try {
+    // Lê o corpo como texto pra logar certinho
     const bodyText = await req.text()
 
-    // Log bruto pra debug
     console.log("WEBHOOK ATIVOPAY RAW BODY:", bodyText)
 
     let json: any
     try {
-      json = JSON.parse(bodyText)
+      json = bodyText ? JSON.parse(bodyText) : {}
     } catch (e) {
-      console.error("WEBHOOK ATIVOPAY: body não é JSON válido")
+      console.error("WEBHOOK ATIVOPAY: body não é JSON válido:", e)
       return NextResponse.json(
         { ok: false, error: "Invalid JSON" },
         { status: 400 },
       )
     }
 
-    // Normalização genérica: às vezes vem em data, às vezes em transaction
+    // Pega o objeto da transação dentro do payload
+    // baseado no formato mais comum da AtivoPay
     const tx = json?.data ?? json?.transaction ?? json
 
     if (!tx) {
@@ -38,89 +39,76 @@ export async function POST(req: Request) {
       )
     }
 
-    // Possíveis campos que o gateway pode usar
     const gatewayId: string | null =
-      tx.id || tx.transactionId || tx.transaction_id || null
+      tx.id || tx.transactionId || tx.externalRef || null
 
-    const externalRef: string | null =
-      tx.externalRef ||
-      tx.external_ref ||
-      tx.orderId ||
-      tx.order_id ||
-      tx.metadata?.orderId ||
-      null
+    const status: string | null =
+      tx.status || tx.transactionStatus || null
 
-    const rawStatus: string | null =
-      tx.status || tx.currentStatus || tx.paymentStatus || null
-
-    const statusUpper = rawStatus ? rawStatus.toString().toUpperCase() : null
-
-    console.log("WEBHOOK ATIVOPAY NORMALIZADO:", {
+    console.log("WEBHOOK ATIVOPAY TX NORMALIZADO:", {
       gatewayId,
-      externalRef,
-      rawStatus,
-      statusUpper,
+      status,
     })
 
-    if (!statusUpper) {
+    if (!gatewayId || !status) {
+      console.error(
+        "WEBHOOK ATIVOPAY: faltando gatewayId ou status:",
+        { gatewayId, status },
+      )
       return NextResponse.json(
-        { ok: false, error: "Missing status" },
+        { ok: false, error: "Missing fields" },
         { status: 400 },
       )
     }
 
-    // Se não for status de pago, apenas ignora com 200 OK
-    if (!PAID_STATUSES.includes(statusUpper)) {
-      console.log("WEBHOOK ATIVOPAY: status não é pago, ignorando:", rawStatus)
+    // Se não for status considerado "pago", só ignora
+    if (!PAID_STATUSES.includes(status.toUpperCase())) {
+      console.log(
+        "WEBHOOK ATIVOPAY: status não é pago, ignorando:",
+        status,
+      )
       return NextResponse.json({ ok: true, ignored: true })
     }
 
-    // 1) Tenta localizar a transação pelo gatewayId
-    let transaction = null
+    // 1) Localiza transação pelo gatewayId (PODE não ser unique, por isso findFirst)
+    const transaction = await prisma.transaction.findFirst({
+      where: { gatewayId },
+    })
 
-    if (gatewayId) {
-      transaction = await prisma.transaction.findFirst({
-        where: { gatewayId },
-      })
-    }
-
-    let orderId: string | null = null
-
-    if (transaction) {
-      orderId = transaction.orderId
-    } else if (externalRef) {
-      // fallback: alguns gateways usam o externalRef como ID do pedido
-      orderId = String(externalRef)
-    }
-
-    if (!transaction && !orderId) {
+    if (!transaction) {
       console.error(
-        "WEBHOOK ATIVOPAY: não encontrou transação nem orderId válido",
+        "WEBHOOK ATIVOPAY: não encontrou transação com gatewayId:",
+        gatewayId,
       )
-      // Mesmo assim devolvemos 200 para não ficar reentregando webhook infinito
+      // devolve 200 pra não ficar reentregando infinito
       return NextResponse.json({ ok: true, notFound: true })
     }
 
-    // 2) Se tiver transação, marca como paid
-    if (transaction) {
-      await prisma.transaction.update({
-        where: { id: transaction.id },
-        data: { status: "paid" },
-      })
-    }
-
-    // 3) Se soubermos o orderId, marcamos o pedido como paid
-    if (orderId) {
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { status: "paid" },
-      })
-    }
-
-    console.log("WEBHOOK ATIVOPAY: marcado como pago:", {
-      transactionId: transaction?.id ?? null,
-      orderId,
+    // 2) Atualiza a transação para "paid"
+    const updatedTransaction = await prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: "paid",
+      },
     })
+
+    // 3) Atualiza o pedido para "paid"
+    const updatedOrder = await prisma.order.update({
+      where: { id: transaction.orderId },
+      data: {
+        status: "paid",
+        // se quiser, pode adicionar paidAt no futuro
+        // paidAt: new Date(),
+      },
+    })
+
+    console.log(
+      "WEBHOOK ATIVOPAY: transação e pedido marcados como pagos:",
+      {
+        transactionId: updatedTransaction.id,
+        orderId: updatedOrder.id,
+      },
+    )
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {

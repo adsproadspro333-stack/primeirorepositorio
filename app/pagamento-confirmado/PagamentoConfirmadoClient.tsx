@@ -26,6 +26,13 @@ type OrderDTO = {
   createdAt?: string
 }
 
+// 🔹 Deixa o ID do pedido mais amigável na tela
+function formatOrderId(id?: string) {
+  if (!id) return ""
+  if (id.length <= 12) return id
+  return `${id.slice(0, 6)}...${id.slice(-4)}`
+}
+
 export default function PagamentoConfirmadoClient({
   orderIdFromSearch,
 }: Props) {
@@ -202,7 +209,7 @@ export default function PagamentoConfirmadoClient({
                 fontWeight={600}
                 sx={{ wordBreak: "break-all" }}
               >
-                {order.id}
+                {formatOrderId(order.id)}
               </Typography>
             </Box>
 
@@ -287,7 +294,7 @@ export default function PagamentoConfirmadoClient({
             variant="contained"
             color="success"
             size="large"
-            onClick={() => router.push("/minhas-compras")}
+            onClick={() => router.push("/compras")} // 👈 redirecionando pro /compras
           >
             Ver minhas compras e números
           </Button>
