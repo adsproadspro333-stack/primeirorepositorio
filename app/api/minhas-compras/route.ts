@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
 
 export async function POST(req: Request) {
   try {
@@ -34,31 +33,28 @@ export async function POST(req: Request) {
     })
 
     const result = orders.map((o) => {
-      const tickets = o.tickets ?? []
-      const hasTickets = tickets.length > 0
+      const qFromOrder = o.quantity ?? 0
+      const qFromTickets = o.tickets?.length ?? 0
+      const quantity = qFromOrder || qFromTickets || 0
 
-      // 1️⃣ Prioridade:
-      //    a) length dos tickets (se geramos bilhetes)
-      //    b) campo quantity salvo no pedido
-      //    c) fallback antigo baseado em valor (pros pedidos velhos)
-      const numbersCount =
-        (hasTickets ? tickets.length : undefined) ??
-        o.quantity ??
-        Math.round((o.amount * 100) / UNIT_PRICE_CENTS)
+      const displayOrderCode =
+        "#" + (o.id ?? "").slice(-6).toUpperCase()
 
       return {
         id: o.id,
+        displayOrderCode,
         amount: o.amount,
         status: o.status,
-        createdAt: (o as any).createdAt ?? null,
-        numbersCount,
-        numbers: tickets.map((t) => t.number),
-        transactions: o.transactions?.map((t) => ({
-          id: t.id,
-          status: t.status,
-          value: t.value,
-          gatewayId: t.gatewayId,
-        })),
+        createdAt: o.createdAt,
+        quantity,
+        numbers: o.tickets?.map((t) => t.number) ?? [],
+        transactions:
+          o.transactions?.map((t) => ({
+            id: t.id,
+            status: t.status,
+            value: t.value,
+            gatewayId: t.gatewayId,
+          })) ?? [],
       }
     })
 

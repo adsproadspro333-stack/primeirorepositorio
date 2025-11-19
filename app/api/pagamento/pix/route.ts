@@ -1,4 +1,3 @@
-// app/api/pagamento/pix/route.ts
 import { NextResponse } from "next/server"
 import { createPixTransaction } from "@/lib/payments/ativopay"
 import { prisma } from "@/lib/prisma"
@@ -12,60 +11,24 @@ export async function POST(req: Request) {
 
     console.log("REQUEST /api/pagamento/pix BODY:", body)
 
-    // -----------------------------
-    // 1️⃣ QUANTIDADE ENVIADA PELO FRONT
-    // -----------------------------
-    const rawQuantity = body?.quantity
-    const quantityFromBody = Number(rawQuantity ?? 0) || 0
-
-    // Se o front mandar array de números (caso futuro / combos fixos)
-    const quantityFromNumbersArray =
-      Array.isArray(body?.numbers) && body.numbers.length > 0
-        ? body.numbers.length
-        : 0
-
-    // Quantidade final:
-    // - se tiver array de números, usa o length
-    // - senão, usa o quantity normal (mas nunca menos que o mínimo)
-    const effectiveQty =
-      quantityFromNumbersArray ||
-      Math.max(quantityFromBody, MIN_NUMBERS)
-
-    // LOG DE DEBUG PRA GENTE VER NO RAILWAY
-    console.log("QTY DEBUG /api/pagamento/pix:", {
-      rawQuantity,
-      quantityFromBody,
-      quantityFromNumbersArray,
-      effectiveQty,
-    })
-
-    // -----------------------------
-    // 2️⃣ TOTAL EM CENTAVOS
-    // -----------------------------
+    // -------------------------------------------------
+    // 1) TOTAL EM CENTAVOS
+    // -------------------------------------------------
     let totalInCents = Number(body?.totalInCents ?? 0)
 
-    if (!Number.isFinite(totalInCents)) {
-      totalInCents = 0
-    }
-
-    if (!totalInCents || totalInCents <= 0) {
+    if (!Number.isFinite(totalInCents) || totalInCents <= 0) {
       const rawAmount = body?.amountInCents ?? body?.amount
       const amountNum = Number(rawAmount)
 
       if (Number.isFinite(amountNum) && amountNum > 0) {
         totalInCents = Math.round(amountNum)
-      } else if (effectiveQty > 0) {
-        // fallback pelo preço unitário padrão
-        totalInCents = effectiveQty * UNIT_PRICE_CENTS
+      } else {
+        totalInCents = 0
       }
     }
 
     if (!totalInCents || totalInCents <= 0) {
       console.error("❌ totalInCents inválido no backend:", {
-        rawQuantity,
-        quantityFromBody,
-        quantityFromNumbersArray,
-        effectiveQty,
         totalInCents,
         body,
       })
@@ -75,9 +38,45 @@ export async function POST(req: Request) {
       )
     }
 
+    // -------------------------------------------------
+    // 2) QUANTIDADE REAL DE NÚMEROS
+    // -------------------------------------------------
+    // 2.1 – do array de números (se vier)
+    const quantityFromNumbersArray =
+      Array.isArray(body.numbers) && body.numbers.length > 0
+        ? body.numbers.length
+        : 0
+
+    // 2.2 – do campo quantity que o front manda
+    const quantityFromBodyRaw = body?.quantity
+    const quantityFromBody =
+      quantityFromBodyRaw !== undefined && quantityFromBodyRaw !== null
+        ? Number(quantityFromBodyRaw) || 0
+        : 0
+
+    // 2.3 – derivado do valor (fallback / pior caso)
+    const quantityFromAmount =
+      UNIT_PRICE_CENTS > 0
+        ? Math.round(totalInCents / UNIT_PRICE_CENTS)
+        : 0
+
+    // 2.4 – decisão final
+    const effectiveQty =
+      quantityFromNumbersArray ||
+      quantityFromBody ||
+      quantityFromAmount ||
+      MIN_NUMBERS
+
+    console.log("DEBUG QUANTIDADE:", {
+      quantityFromNumbersArray,
+      quantityFromBody,
+      quantityFromAmount,
+      effectiveQty,
+      MIN_NUMBERS,
+    })
+
     const amountInCents = Math.round(totalInCents)
 
-    const title = body?.itemTitle || `${effectiveQty} números`
     const customer = body?.customer || {}
     const documentType = (customer?.documentType as "CPF" | "CNPJ") || "CPF"
 
@@ -94,9 +93,11 @@ export async function POST(req: Request) {
       )
     }
 
-    // -----------------------------
-    // 3️⃣ Garante usuário pelo CPF
-    // -----------------------------
+    const title = body?.itemTitle || `${effectiveQty} números`
+
+    // -------------------------------------------------
+    // 3) Garante usuário pelo CPF
+    // -------------------------------------------------
     let user
 
     try {
@@ -123,18 +124,25 @@ export async function POST(req: Request) {
       throw new Error("Não foi possível criar/encontrar o usuário")
     }
 
-    // -----------------------------
-    // 4️⃣ Cria o pedido no banco (AGORA COM quantity)
-    // -----------------------------
+    // -------------------------------------------------
+    // 4) Cria o pedido no banco
+    // -------------------------------------------------
+    console.log("CRIANDO ORDER COM:", {
+      userId: user.id,
+      amount: amountInCents / 100,
+      quantity: effectiveQty,
+    })
+
     const order = await prisma.order.create({
       data: {
         userId: user.id,
         amount: amountInCents / 100, // em reais
         status: "pending",
-        quantity: effectiveQty, // 👈 salvando a quantidade REAL
+        quantity: effectiveQty, // 👈 AGORA SEMPRE > 0
       },
     })
 
+    // Se vierem números específicos, grava na Ticket
     if (Array.isArray(body.numbers) && body.numbers.length > 0) {
       await prisma.ticket.createMany({
         data: body.numbers.map((n: number) => ({
@@ -144,9 +152,9 @@ export async function POST(req: Request) {
       })
     }
 
-    // -----------------------------
-    // 5️⃣ Chama AtivoPay pra gerar o PIX
-    // -----------------------------
+    // -------------------------------------------------
+    // 5) Chama AtivoPay pra gerar o PIX
+    // -------------------------------------------------
     const resp = await createPixTransaction({
       amount: amountInCents,
       customer: {
@@ -218,9 +226,9 @@ export async function POST(req: Request) {
       )
     }
 
-    // -----------------------------
-    // 6️⃣ Salva transação ligada ao pedido
-    // -----------------------------
+    // -------------------------------------------------
+    // 6) Transação
+    // -------------------------------------------------
     const transaction = await prisma.transaction.create({
       data: {
         orderId: order.id,
@@ -230,9 +238,9 @@ export async function POST(req: Request) {
       },
     })
 
-    // -----------------------------
-    // 7️⃣ Retorno pro front
-    // -----------------------------
+    // -------------------------------------------------
+    // 7) Retorno pro front
+    // -------------------------------------------------
     return NextResponse.json(
       {
         ok: true,
