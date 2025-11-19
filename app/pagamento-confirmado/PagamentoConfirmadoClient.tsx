@@ -1,3 +1,4 @@
+// app/pagamento-confirmado/PagamentoConfirmadoClient.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -8,19 +9,21 @@ import {
   Container,
   Paper,
   Typography,
+  Divider,
   CircularProgress,
 } from "@mui/material"
 import { formatBRL } from "@/app/lib/formatCurrency"
-
-type OrderDTO = {
-  id: string
-  amount: number // em reais
-  quantity: number
-  createdAt?: string
-}
+import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
 
 type Props = {
   orderIdFromSearch?: string
+}
+
+type OrderDTO = {
+  id: string
+  amount: number       // em REAIS (a gente salvou amountInCents/100 na ordem)
+  quantity?: number    // a API de /api/orders deve devolver isso
+  createdAt?: string
 }
 
 export default function PagamentoConfirmadoClient({
@@ -32,40 +35,59 @@ export default function PagamentoConfirmadoClient({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let effectiveOrderId = orderIdFromSearch || undefined
-
-    if (!effectiveOrderId && typeof window !== "undefined") {
-      effectiveOrderId =
-        window.localStorage.getItem("lastPaidOrderId") ||
-        window.localStorage.getItem("lastOrderId") ||
-        undefined
-    }
-
-    if (!effectiveOrderId) {
-      setError("Não encontramos os dados do seu pedido.")
-      setLoading(false)
-      return
-    }
-
-    const loadOrder = async () => {
+    async function loadOrder() {
       try {
-        const res = await fetch(`/api/orders/${effectiveOrderId}`, {
+        // 1) Decide qual orderId usar
+        let finalOrderId = orderIdFromSearch || null
+
+        if (!finalOrderId && typeof window !== "undefined") {
+          finalOrderId =
+            localStorage.getItem("lastPaidOrderId") ||
+            localStorage.getItem("lastOrderId")
+        }
+
+        if (!finalOrderId) {
+          setError("Não encontramos os dados do seu pedido.")
+          setLoading(false)
+          return
+        }
+
+        // guarda o último pedido pago
+        if (typeof window !== "undefined") {
+          localStorage.setItem("lastPaidOrderId", finalOrderId)
+        }
+
+        // 2) Busca o pedido na API
+        const res = await fetch(`/api/orders/${finalOrderId}`, {
           cache: "no-store",
         })
-        if (!res.ok) throw new Error("Falha ao carregar pedido")
+
+        if (!res.ok) {
+          const text = await res.text()
+          console.error(
+            "Erro ao buscar pedido em /api/orders/:id =>",
+            res.status,
+            text,
+          )
+          setError("Falha ao carregar pedido")
+          setLoading(false)
+          return
+        }
 
         const data: OrderDTO = await res.json()
         setOrder(data)
         setLoading(false)
       } catch (err: any) {
-        console.error("Erro ao carregar pedido confirmado:", err)
-        setError(err.message || "Erro ao carregar pedido")
+        console.error("Erro inesperado ao carregar pedido:", err)
+        setError("Falha ao carregar pedido")
         setLoading(false)
       }
     }
 
     loadOrder()
   }, [orderIdFromSearch])
+
+  // ---------------- RENDER ----------------
 
   if (loading) {
     return (
@@ -84,42 +106,50 @@ export default function PagamentoConfirmadoClient({
 
   if (error || !order) {
     return (
-      <Container maxWidth="md" sx={{ py: 6 }}>
-        <Typography variant="h5" color="error" gutterBottom>
-          Ops, houve um problema.
-        </Typography>
-        <Typography variant="body1" gutterBottom>
-          {error ??
-            "Não conseguimos localizar os dados do seu pedido. Mas se o PIX foi aprovado, fique tranquilo que os números serão enviados por email."}
-        </Typography>
-        <Button sx={{ mt: 3 }} variant="contained" onClick={() => router.push("/")}>
-          Voltar ao início
-        </Button>
-      </Container>
+      <Box sx={{ bgcolor: "background.default", minHeight: "100vh", pb: 4 }}>
+        <Container maxWidth="md" sx={{ py: 6, textAlign: "center" }}>
+          <Typography variant="h5" color="error" fontWeight={700} gutterBottom>
+            Ops, houve um problema.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            {error || "Não encontramos os dados do seu pedido."}
+          </Typography>
+          <Button
+            variant="contained"
+            sx={{ mt: 3 }}
+            onClick={() => router.push("/")}
+          >
+            Voltar ao início
+          </Button>
+        </Container>
+      </Box>
     )
   }
 
+  const quantidade = order.quantity ?? 0
   const total = order.amount
-  const quantidade = order.quantity
-  const unitario = quantidade > 0 ? total / quantidade : total
-  const dataAprovacao = order.createdAt
-    ? new Date(order.createdAt)
-    : new Date()
+  const unitario =
+    quantidade > 0 ? total / quantidade : UNIT_PRICE_CENTS / 100
 
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh", pb: 6 }}>
       <Container maxWidth="md" sx={{ py: 6 }}>
-        {/* topo de sucesso */}
+        {/* Banner de sucesso */}
         <Paper
           elevation={3}
           sx={{
-            p: 3,
+            p: 4,
             mb: 4,
             textAlign: "center",
             borderTop: "4px solid #00a868",
           }}
         >
-          <Typography variant="h5" fontWeight={700} gutterBottom>
+          <Typography
+            variant="h5"
+            fontWeight={700}
+            color="success.main"
+            gutterBottom
+          >
             Pagamento aprovado com sucesso!
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -127,13 +157,12 @@ export default function PagamentoConfirmadoClient({
           </Typography>
         </Paper>
 
-        {/* resumo do pedido */}
-        <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
+        {/* Resumo do pedido */}
+        <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
           <Typography
-            variant="h6"
+            variant="subtitle1"
             fontWeight={700}
-            align="center"
-            gutterBottom
+            sx={{ mb: 2, textAlign: "center" }}
           >
             Resumo do seu pedido
           </Typography>
@@ -141,10 +170,9 @@ export default function PagamentoConfirmadoClient({
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(4, 1fr)" },
               gap: 2,
-              mt: 2,
-              textAlign: "center",
+              mb: 2,
             }}
           >
             <Box>
@@ -169,7 +197,11 @@ export default function PagamentoConfirmadoClient({
               <Typography variant="caption" color="text.secondary">
                 ID do pedido
               </Typography>
-              <Typography variant="h6" fontWeight={700}>
+              <Typography
+                variant="body2"
+                fontWeight={600}
+                sx={{ wordBreak: "break-all" }}
+              >
                 {order.id}
               </Typography>
             </Box>
@@ -187,67 +219,69 @@ export default function PagamentoConfirmadoClient({
           <Typography
             variant="caption"
             color="text.secondary"
-            display="block"
-            align="center"
-            sx={{ mt: 2 }}
+            sx={{ display: "block", textAlign: "center", mt: 1 }}
           >
-            Data de aprovação:{" "}
-            {dataAprovacao.toLocaleString("pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            Data da aprovação:{" "}
+            {order.createdAt
+              ? new Date(order.createdAt).toLocaleString("pt-BR")
+              : "—"}
           </Typography>
         </Paper>
 
-        {/* detalhes da compra */}
+        {/* Detalhes da compra */}
         <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h6" fontWeight={700} gutterBottom>
+          <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
             Detalhes da sua compra
           </Typography>
 
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              rowGap: 1,
-              columnGap: 4,
+              gridTemplateColumns: { xs: "1fr", sm: "1.5fr 1fr 1fr" },
+              rowGap: 1.5,
             }}
           >
-            <Typography color="text.secondary">
-              Quantidade de números
-            </Typography>
-            <Typography>{quantidade}</Typography>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Quantidade de números
+              </Typography>
+              <Typography variant="body1" fontWeight={600}>
+                {quantidade}
+              </Typography>
+            </Box>
 
-            <Typography color="text.secondary">Valor unitário</Typography>
-            <Typography>{formatBRL(unitario)}</Typography>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Valor unitário
+              </Typography>
+              <Typography variant="body1" fontWeight={600}>
+                {formatBRL(unitario)}
+              </Typography>
+            </Box>
 
-            <Typography color="text.secondary">Valor total</Typography>
-            <Typography>{formatBRL(total)}</Typography>
-
-            <Typography color="text.secondary">Horário da aprovação</Typography>
-            <Typography>
-              {dataAprovacao.toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Typography>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Valor total
+              </Typography>
+              <Typography variant="body1" fontWeight={600}>
+                {formatBRL(total)}
+              </Typography>
+            </Box>
           </Box>
+
+          <Divider sx={{ my: 2 }} />
 
           <Typography
             variant="caption"
             color="text.secondary"
-            display="block"
-            sx={{ mt: 2 }}
+            sx={{ display: "block" }}
           >
-            Em breve seus números aparecerão aqui e também serão enviados por
-            email automaticamente.
+            Em breve seus números aparecerão aqui e/ou serão enviados
+            automaticamente para o seu e-mail.
           </Typography>
         </Paper>
 
-        {/* botões finais */}
+        {/* Botões de ação */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Button
             variant="contained"

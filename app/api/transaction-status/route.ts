@@ -7,7 +7,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
 
-    // protege contra valores ruins: ?, id=undefined, id=null
     if (!id || id === "undefined" || id === "null") {
       return NextResponse.json(
         { ok: false, error: "transaction id obrigatório" },
@@ -15,17 +14,11 @@ export async function GET(req: Request) {
       )
     }
 
-    // tenta achar tanto pelo id interno quanto pelo gatewayId
     const transaction = await prisma.transaction.findFirst({
       where: {
-        OR: [
-          { id },
-          { gatewayId: id },
-        ],
+        OR: [{ id }, { gatewayId: id }],
       },
-      include: {
-        order: true,
-      },
+      include: { order: true },
     })
 
     if (!transaction) {
