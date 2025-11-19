@@ -40,13 +40,12 @@ export async function createPixTransaction(params: CreatePixParams) {
     throw new Error("ATIVO_PAY_BASE_URL ou ATIVO_PAY_API_KEY não configurados");
   }
 
-  const url = `${BASE_URL}/api/user/transactions`; // igual ao curl da doc
+  const url = `${BASE_URL}/api/user/transactions`; // endpoint da doc
 
   // Decide o postbackUrl efetivo (params > env)
-  const candidatePostback =
-    params.postbackUrl || WEBHOOK_URL || undefined;
+  const candidatePostback = params.postbackUrl || WEBHOOK_URL || undefined;
 
-  // Só aceita HTTPS (pra não tomar 403 "não pode http")
+  // Só aceita HTTPS (pra não tomar 403)
   const safePostbackUrl =
     candidatePostback && candidatePostback.startsWith("https://")
       ? candidatePostback
@@ -57,7 +56,7 @@ export async function createPixTransaction(params: CreatePixParams) {
       expiresInDays: params.expiresInDays,
     },
     items: params.items,
-    amount: params.amount, // valor em centavos
+    amount: params.amount, // centavos
     currency: "BRL",
     customer: {
       name: params.customer.name,
@@ -79,10 +78,7 @@ export async function createPixTransaction(params: CreatePixParams) {
   }
 
   // Logs úteis pro suporte
-  console.log(
-    "PAYLOAD PARA ATIVOPAY:",
-    JSON.stringify(body, null, 2)
-  );
+  console.log("PAYLOAD PARA ATIVOPAY:", JSON.stringify(body, null, 2));
 
   const headers = {
     "x-api-key": API_KEY, // EXATAMENTE COMO NA DOC
@@ -119,13 +115,30 @@ export async function createPixTransaction(params: CreatePixParams) {
 
   const tx = data?.data ?? data;
 
+  const pix = tx?.pix ?? null;
+
+  // 🧠 Mapeia TODAS as possibilidades de onde pode vir o copia-e-cola
+  const pixCopiaECola: string | null =
+    pix?.payload?.emv ||           // alguns gateways usam isso
+    tx?.payload?.emv ||            // ou direto na raiz
+    pix?.qrcode ||                 // NO TEU CASO, É ESSE AQUI ✅
+    tx?.qrCode ||                  // fallback (campo na raiz)
+    null;
+
+  // Se em algum momento eles mandarem imagem em base64
+  const qrCodeBase64: string | null =
+    pix?.imageBase64 || tx?.qrCodeBase64 || null;
+
   return {
     raw: data,
     transactionId: tx?.id,
     amount: tx?.amount,
     status: tx?.status,
-    pix: tx?.pix || null,
+    pix,
     boleto: tx?.boleto || null,
     customer: tx?.customer || null,
+    // 🔥 estes dois campos são o que a rota /api/pagamento/pix espera
+    pixCopiaECola,
+    qrCodeBase64,
   };
 }
