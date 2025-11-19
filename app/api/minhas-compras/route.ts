@@ -1,41 +1,58 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const cpf = searchParams.get("cpf");
+    const body = await req.json()
+    const cpfRaw = body?.cpf as string | undefined
 
-    if (!cpf) {
+    if (!cpfRaw) {
       return NextResponse.json(
-        { error: "cpf é obrigatório" },
-        { status: 400 }
-      );
+        { ok: false, error: "CPF obrigatório" },
+        { status: 400 },
+      )
     }
+
+    const cpf = cpfRaw.replace(/\D/g, "")
 
     const user = await prisma.user.findUnique({
       where: { cpf },
-      include: {
-        orders: {
-          orderBy: { createdAt: "desc" },
-          include: {
-            tickets: true,
-            transactions: true,
-          },
-        },
-      },
-    });
+    })
 
     if (!user) {
-      return NextResponse.json([], { status: 200 });
+      return NextResponse.json({ ok: true, orders: [] })
     }
 
-    return NextResponse.json(user.orders, { status: 200 });
-  } catch (error) {
-    console.error("ERRO AO BUSCAR COMPRAS:", error);
+    const orders = await prisma.order.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" }, // se existir createdAt
+      include: {
+        transactions: true,
+        tickets: true,
+      },
+    })
+
+    const result = orders.map((o) => ({
+      id: o.id,
+      amount: o.amount,
+      status: o.status,
+      // se não tiver createdAt no modelo, remove essa linha:
+      createdAt: (o as any).createdAt ?? null,
+      numbers: o.tickets?.map((t) => t.number) ?? [],
+      transactions: o.transactions?.map((t) => ({
+        id: t.id,
+        status: t.status,
+        value: t.value,
+        gatewayId: t.gatewayId,
+      })),
+    }))
+
+    return NextResponse.json({ ok: true, orders: result })
+  } catch (err: any) {
+    console.error("ERRO /api/minhas-compras:", err)
     return NextResponse.json(
-      { error: "Erro interno ao buscar compras" },
-      { status: 500 }
-    );
+      { ok: false, error: err?.message || "Erro inesperado" },
+      { status: 500 },
+    )
   }
 }
