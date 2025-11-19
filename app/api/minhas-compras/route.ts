@@ -1,3 +1,4 @@
+// app/api/minhas-compras/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
@@ -13,12 +14,14 @@ export async function POST(req: Request) {
       )
     }
 
+    // normaliza CPF (só dígitos)
     const cpf = cpfRaw.replace(/\D/g, "")
 
     const user = await prisma.user.findUnique({
       where: { cpf },
     })
 
+    // se não achou usuário, retorna lista vazia
     if (!user) {
       return NextResponse.json({ ok: true, orders: [] })
     }
@@ -33,20 +36,25 @@ export async function POST(req: Request) {
     })
 
     const result = orders.map((o) => {
+      // quantidade vinda da coluna quantity (combos / ticket único)
       const qFromOrder = o.quantity ?? 0
+      // quantidade vinda da quantidade de tickets (um número por linha)
       const qFromTickets = o.tickets?.length ?? 0
+
+      // prioridade: quantity da Order > quantidade de tickets > 0
       const quantity = qFromOrder || qFromTickets || 0
 
-      const displayOrderCode =
-        "#" + (o.id ?? "").slice(-6).toUpperCase()
+      // ID amigável pro cliente (baseado no UUID)
+      const rawId = (o.id ?? "").replace(/-/g, "")
+      const displayOrderCode = "#" + rawId.slice(-6).toUpperCase()
 
       return {
-        id: o.id,
-        displayOrderCode,
+        id: o.id,                      // id real (uuid) – interno
+        displayOrderCode,              // id curtinho mostrado pro cliente
         amount: o.amount,
         status: o.status,
         createdAt: o.createdAt,
-        quantity,
+        quantity,                      // qtde de números exibida no front
         numbers: o.tickets?.map((t) => t.number) ?? [],
         transactions:
           o.transactions?.map((t) => ({
