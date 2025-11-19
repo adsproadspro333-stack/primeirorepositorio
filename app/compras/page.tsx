@@ -82,6 +82,20 @@ export default function MinhasComprasPage() {
       minimumFractionDigits: 2,
     })
 
+  // 👇 Helper só pra traduzir o status visualmente
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "paid":
+        return "PAGO"
+      case "pending":
+        return "PENDENTE"
+      case "canceled":
+        return "CANCELADO"
+      default:
+        return status?.toUpperCase?.() || status
+    }
+  }
+
   return (
     <div
       style={{
@@ -252,7 +266,7 @@ export default function MinhasComprasPage() {
                           color: isPaid ? "#166534" : "#92400E",
                         }}
                       >
-                        {order.status}
+                        {getStatusLabel(order.status)}
                       </span>
                     </div>
                     <div>
