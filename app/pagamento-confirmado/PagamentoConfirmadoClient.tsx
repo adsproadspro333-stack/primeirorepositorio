@@ -1,96 +1,125 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
-  Container,
   Box,
+  Button,
+  Container,
   Paper,
   Typography,
-  Button,
-  Alert,
-  Divider,
-  Grid,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
+  CircularProgress,
 } from "@mui/material"
-import { Icon } from "@iconify/react"
 import { formatBRL } from "@/app/lib/formatCurrency"
-import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
 
-type OrderData = {
+type OrderDTO = {
   id: string
-  amount: number
+  amount: number // em reais
   quantity: number
-  status: string
-  paymentMethod: string
-  paidAt: string
+  createdAt?: string
 }
 
-export default function PagamentoConfirmadoClient() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+type Props = {
+  orderIdFromSearch?: string
+}
 
-  const [order, setOrder] = useState<OrderData>({
-    id: "MOCK-123456",
-    amount: 10,
-    quantity: 100,
-    status: "paid",
-    paymentMethod: "PIX",
-    paidAt: new Date().toISOString(),
-  })
+export default function PagamentoConfirmadoClient({
+  orderIdFromSearch,
+}: Props) {
+  const router = useRouter()
+  const [order, setOrder] = useState<OrderDTO | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const orderId = searchParams.get("orderId")
-    if (orderId) {
-      console.log("[v0] orderId from URL:", orderId)
-      // FUTURO: buscar dados reais da API aqui
+    let effectiveOrderId = orderIdFromSearch || undefined
+
+    if (!effectiveOrderId && typeof window !== "undefined") {
+      effectiveOrderId =
+        window.localStorage.getItem("lastPaidOrderId") ||
+        window.localStorage.getItem("lastOrderId") ||
+        undefined
     }
-  }, [searchParams])
 
-  const handleViewPurchases = () => {
-    router.push("/compras")
+    if (!effectiveOrderId) {
+      setError("Não encontramos os dados do seu pedido.")
+      setLoading(false)
+      return
+    }
+
+    const loadOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders/${effectiveOrderId}`, {
+          cache: "no-store",
+        })
+        if (!res.ok) throw new Error("Falha ao carregar pedido")
+
+        const data: OrderDTO = await res.json()
+        setOrder(data)
+        setLoading(false)
+      } catch (err: any) {
+        console.error("Erro ao carregar pedido confirmado:", err)
+        setError(err.message || "Erro ao carregar pedido")
+        setLoading(false)
+      }
+    }
+
+    loadOrder()
+  }, [orderIdFromSearch])
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    )
   }
 
-  const handleReturnHome = () => {
-    router.push("/")
+  if (error || !order) {
+    return (
+      <Container maxWidth="md" sx={{ py: 6 }}>
+        <Typography variant="h5" color="error" gutterBottom>
+          Ops, houve um problema.
+        </Typography>
+        <Typography variant="body1" gutterBottom>
+          {error ??
+            "Não conseguimos localizar os dados do seu pedido. Mas se o PIX foi aprovado, fique tranquilo que os números serão enviados por email."}
+        </Typography>
+        <Button sx={{ mt: 3 }} variant="contained" onClick={() => router.push("/")}>
+          Voltar ao início
+        </Button>
+      </Container>
+    )
   }
 
-  const unitPrice = UNIT_PRICE_CENTS / 100
-  const formattedDate = new Date(order.paidAt).toLocaleDateString("pt-BR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  const total = order.amount
+  const quantidade = order.quantity
+  const unitario = quantidade > 0 ? total / quantidade : total
+  const dataAprovacao = order.createdAt
+    ? new Date(order.createdAt)
+    : new Date()
 
   return (
-    <Box sx={{ bgcolor: "background.default", minHeight: "100vh", pb: 4 }}>
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        {/* Success Header */}
+    <Box sx={{ bgcolor: "background.default", minHeight: "100vh", pb: 6 }}>
+      <Container maxWidth="md" sx={{ py: 6 }}>
+        {/* topo de sucesso */}
         <Paper
           elevation={3}
           sx={{
             p: 3,
-            mb: 3,
-            bgcolor: "#F2F2F2",
-            border: "2px solid",
-            borderColor: "success.main",
+            mb: 4,
             textAlign: "center",
+            borderTop: "4px solid #00a868",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
-            <Icon
-              icon="mdi:check-decagram"
-              width={64}
-              style={{ color: "#00a868" }}
-            />
-          </Box>
-          <Typography variant="h5" fontWeight={700} color="success.main" gutterBottom>
+          <Typography variant="h5" fontWeight={700} gutterBottom>
             Pagamento aprovado com sucesso!
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -98,255 +127,145 @@ export default function PagamentoConfirmadoClient() {
           </Typography>
         </Paper>
 
-        {/* Order Summary */}
-        <Paper elevation={2} sx={{ p: 3, mb: 3, textAlign: "center" }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom>
+        {/* resumo do pedido */}
+        <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
+          <Typography
+            variant="h6"
+            fontWeight={700}
+            align="center"
+            gutterBottom
+          >
             Resumo do seu pedido
           </Typography>
 
-          <Divider sx={{ my: 2 }} />
-
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={12} sm={6}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Total pago
-                </Typography>
-                <Typography variant="h5" fontWeight={700} color="success.main">
-                  {formatBRL(order.amount)}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Quantidade de números
-                </Typography>
-                <Typography variant="h5" fontWeight={700}>
-                  {order.quantity}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  ID do pedido
-                </Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {order.id}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Forma de pagamento
-                </Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {order.paymentMethod}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 2 }} />
-
-          <Typography variant="caption" color="text.secondary">
-            Data de aprovação: {formattedDate}
-          </Typography>
-        </Paper>
-
-        {/* Purchase Details */}
-        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom>
-            Detalhes da sua compra
-          </Typography>
-
-          <List>
-            <ListItem divider>
-              <ListItemText
-                primary="Quantidade de números"
-                secondary={`${order.quantity} títulos`}
-              />
-            </ListItem>
-            <ListItem divider>
-              <ListItemText
-                primary="Valor unitário"
-                secondary={formatBRL(unitPrice)}
-              />
-            </ListItem>
-            <ListItem divider>
-              <ListItemText
-                primary="Valor total"
-                secondary={formatBRL(order.amount)}
-                secondaryTypographyProps={{ fontWeight: 700 }}
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemText
-                primary="Horário da aprovação"
-                secondary={new Date(order.paidAt).toLocaleTimeString("pt-BR")}
-              />
-            </ListItem>
-          </List>
-
           <Box
             sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 2,
               mt: 2,
-              p: 2,
-              bgcolor: "#f5f5f5",
-              borderRadius: 1,
               textAlign: "center",
             }}
           >
-            <Typography variant="body2" color="text.secondary">
-              Em breve seus números aparecerão aqui automaticamente.
-            </Typography>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Total pago
+              </Typography>
+              <Typography variant="h6" fontWeight={700}>
+                {formatBRL(total)}
+              </Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Quantidade de números
+              </Typography>
+              <Typography variant="h6" fontWeight={700}>
+                {quantidade}
+              </Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                ID do pedido
+              </Typography>
+              <Typography variant="h6" fontWeight={700}>
+                {order.id}
+              </Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Forma de pagamento
+              </Typography>
+              <Typography variant="h6" fontWeight={700}>
+                PIX
+              </Typography>
+            </Box>
           </Box>
+
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            align="center"
+            sx={{ mt: 2 }}
+          >
+            Data de aprovação:{" "}
+            {dataAprovacao.toLocaleString("pt-BR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Typography>
         </Paper>
 
-        {/* Action Buttons */}
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
+        {/* detalhes da compra */}
+        <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            Detalhes da sua compra
+          </Typography>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              rowGap: 1,
+              columnGap: 4,
+            }}
+          >
+            <Typography color="text.secondary">
+              Quantidade de números
+            </Typography>
+            <Typography>{quantidade}</Typography>
+
+            <Typography color="text.secondary">Valor unitário</Typography>
+            <Typography>{formatBRL(unitario)}</Typography>
+
+            <Typography color="text.secondary">Valor total</Typography>
+            <Typography>{formatBRL(total)}</Typography>
+
+            <Typography color="text.secondary">Horário da aprovação</Typography>
+            <Typography>
+              {dataAprovacao.toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Typography>
+          </Box>
+
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            sx={{ mt: 2 }}
+          >
+            Em breve seus números aparecerão aqui e também serão enviados por
+            email automaticamente.
+          </Typography>
+        </Paper>
+
+        {/* botões finais */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Button
             variant="contained"
             color="success"
             size="large"
-            fullWidth
-            onClick={handleViewPurchases}
-            startIcon={<Icon icon="mdi:shopping-outline" width={24} />}
-            sx={{
-              py: 2,
-              fontSize: "1.1rem",
-              fontWeight: 700,
-            }}
+            onClick={() => router.push("/minhas-compras")}
           >
             Ver minhas compras e números
           </Button>
 
           <Button
             variant="outlined"
-            color="primary"
             size="large"
-            fullWidth
-            onClick={handleReturnHome}
-            startIcon={<Icon icon="mdi:home" width={24} />}
-            sx={{
-              py: 2,
-              fontSize: "1.1rem",
-              fontWeight: 700,
-              borderWidth: 2,
-              "&:hover": { borderWidth: 2 },
-            }}
+            onClick={() => router.push("/")}
           >
             Voltar ao início
           </Button>
         </Box>
-
-        {/* Upsell Section */}
-        <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: "#fafafa" }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom>
-            Aumente suas chances
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Adicione mais números e aumente significativamente suas chances de ganhar!
-          </Typography>
-
-          <Grid container spacing={2}>
-            {/* Upsell Card 1 */}
-            <Grid item xs={12} sm={6}>
-              <Card
-                sx={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  cursor: "pointer",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                  "&:hover": {
-                    transform: "translateY(-4px)",
-                    boxShadow: 4,
-                  },
-                }}
-              >
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ textAlign: "center", mb: 2 }}>
-                    <Icon
-                      icon="mdi:gift-outline"
-                      width={40}
-                      style={{ color: "#ff6b6b" }}
-                    />
-                  </Box>
-                  <Typography variant="h6" fontWeight={700} gutterBottom>
-                    Combo Sorte
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Ganhe 50 números extras por um preço especial. Oferta válida apenas
-                    para novos clientes!
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    size="small"
-                    onClick={() => router.push("/")}
-                  >
-                    Ver oferta
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Upsell Card 2 */}
-            <Grid item xs={12} sm={6}>
-              <Card
-                sx={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  cursor: "pointer",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                  "&:hover": {
-                    transform: "translateY(-4px)",
-                    boxShadow: 4,
-                  },
-                }}
-              >
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ textAlign: "center", mb: 2 }}>
-                    <Icon
-                      icon="mdi:lightning-bolt"
-                      width={40}
-                      style={{ color: "#ffd700" }}
-                    />
-                  </Box>
-                  <Typography variant="h6" fontWeight={700} gutterBottom>
-                    Turbo Premium
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Acesso exclusivo a sorteios VIP com prêmios maiores e frequência
-                    diferenciada.
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    size="small"
-                    onClick={() => router.push("/")}
-                  >
-                    Ver oferta
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </Paper>
-
-        {/* Info Alert */}
-        <Alert severity="info">
-          <Typography variant="body2">
-            <strong>Você receberá tudo no e-mail também.</strong> Em caso de dúvidas,
-            nosso suporte está à disposição.
-          </Typography>
-        </Alert>
       </Container>
     </Box>
   )

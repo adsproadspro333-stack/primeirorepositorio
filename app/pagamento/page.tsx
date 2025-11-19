@@ -33,9 +33,8 @@ type OrderDTO = { id: string; amount: number; quantity: number }
 export default function PagamentoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const orderId = searchParams.get("orderId")
+  const orderId = searchParams.get("orderId") || null
 
-  // agora usamos totalInCents da store
   const { qty, totalInCents } = useCartStore()
 
   const [resolved, setResolved] = useState<{ amount: number; qty: number }>({
@@ -43,7 +42,6 @@ export default function PagamentoPage() {
     qty,
   })
 
-  // trava para não gerar PIX duas vezes (StrictMode)
   const pixRequestedRef = useRef(false)
 
   const [pixPayload, setPixPayload] = useState("")
@@ -74,9 +72,13 @@ export default function PagamentoPage() {
 
         const data: OrderDTO = await response.json()
 
-        // no banco você salva amount em REAIS,
-        // então aqui NÃO dividimos de novo por 100
+        // amount já vem em REAIS do banco
         setResolved({ amount: data.amount, qty: data.quantity })
+
+        // guarda no localStorage pro pagamento-confirmado conseguir usar
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("lastOrderId", data.id)
+        }
       } catch (err) {
         console.error("[v0] Failed to load order, falling back to store:", err)
         setResolved({ amount: totalInCents / 100, qty })
@@ -86,7 +88,7 @@ export default function PagamentoPage() {
     loadOrderData()
   }, [orderId, totalInCents, qty])
 
-  // 2) Geração do PIX (com trava pra não duplicar)
+  // 2) Geração do PIX
   useEffect(() => {
     const customerData =
       typeof window !== "undefined"
@@ -98,7 +100,6 @@ export default function PagamentoPage() {
       return
     }
 
-    // se ainda não temos valor ou quantidade, não faz nada
     if (
       !resolved.qty ||
       resolved.qty <= 0 ||
@@ -108,7 +109,6 @@ export default function PagamentoPage() {
       return
     }
 
-    // impede chamar 2x (StrictMode monta o componente duas vezes no dev)
     if (pixRequestedRef.current) return
     pixRequestedRef.current = true
 
@@ -140,9 +140,7 @@ export default function PagamentoPage() {
           throw new Error(data.error || "Falha ao gerar PIX")
         }
 
-        // ------------------------------
-        // 🎯 Parser robusto para a resposta da API
-        // ------------------------------
+        // parser flexível de copia e cola
         const copiaECola: string | null =
           data.pixCopiaECola ??
           data.copia_e_cola ??
@@ -151,7 +149,6 @@ export default function PagamentoPage() {
           data.qr_code ??
           null
 
-        // (mantemos isso caso queira usar o QR em base64 futuramente)
         const qrBase64: string | null =
           data.qrCodeBase64 ??
           data.qr_code_base64 ??
@@ -177,7 +174,7 @@ export default function PagamentoPage() {
 
     generatePix()
 
-    // contador de tempo
+    // contador
     let minutes = 14
     let seconds = 28
     const interval = setInterval(() => {
@@ -201,7 +198,7 @@ export default function PagamentoPage() {
     return () => clearInterval(interval)
   }, [router, resolved.qty, resolved.amount])
 
-  // 3) Checa no backend se a transação foi paga e redireciona
+  // 3) Polling de status e redirect
   useEffect(() => {
     if (!transactionId) return
 
@@ -214,15 +211,25 @@ export default function PagamentoPage() {
 
         if (data.status === "paid") {
           clearInterval(interval)
-          router.push("/pagamento-confirmado")
+
+          // guarda o último pedido pago
+          if (typeof window !== "undefined" && orderId) {
+            window.localStorage.setItem("lastPaidOrderId", orderId)
+          }
+
+          const target = orderId
+            ? `/pagamento-confirmado?orderId=${orderId}`
+            : "/pagamento-confirmado"
+
+          router.push(target)
         }
       } catch (err) {
         console.error("Erro ao checar status da transação:", err)
       }
-    }, 5000) // checa a cada 5 segundos
+    }, 5000)
 
     return () => clearInterval(interval)
-  }, [transactionId, router])
+  }, [transactionId, router, orderId])
 
   const handleCopyPixCode = async () => {
     if (!pixPayload) {
@@ -301,7 +308,7 @@ export default function PagamentoPage() {
   return (
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh", pb: 4 }}>
       <Container maxWidth="md" sx={{ py: 4 }}>
-        {/* Payment Status Header */}
+        {/* cabeçalho status */}
         <Paper
           elevation={3}
           sx={{
@@ -345,7 +352,7 @@ export default function PagamentoPage() {
           </Box>
         </Paper>
 
-        {/* Payment Title */}
+        {/* título */}
         <Box sx={{ mb: 3, textAlign: "center" }}>
           <Icon
             icon="simple-icons:pix"
@@ -368,108 +375,61 @@ export default function PagamentoPage() {
 
         <Divider sx={{ mb: 3 }} />
 
-        {/* Instructions */}
+        {/* instruções */}
         <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
           <Typography variant="h6" fontWeight={600} gutterBottom>
             Como pagar com PIX:
           </Typography>
           <List>
-            <ListItem>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    bgcolor: "primary.main",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                  }}
-                >
-                  1
-                </Box>
-              </ListItemIcon>
-              <ListItemText
-                primary="Abra o aplicativo do seu banco"
-                secondary="Acesse a área PIX do aplicativo"
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    bgcolor: "primary.main",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                  }}
-                >
-                  2
-                </Box>
-              </ListItemIcon>
-              <ListItemText
-                primary="Escolha pagar com QR Code ou Pix Copia e Cola"
-                secondary="Use uma das opções disponíveis abaixo"
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    bgcolor: "primary.main",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                  }}
-                >
-                  3
-                </Box>
-              </ListItemIcon>
-              <ListItemText
-                primary="Confirme o pagamento"
-                secondary="Verifique os dados e confirme a transação"
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    bgcolor: "success.main",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                  }}
-                >
-                  4
-                </Box>
-              </ListItemIcon>
-              <ListItemText
-                primary="Pronto! Seu pedido será confirmado automaticamente"
-                secondary="Você receberá um email com os detalhes"
-              />
-            </ListItem>
+            {[1, 2, 3, 4].map((step) => (
+              <ListItem key={step}>
+                <ListItemIcon>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      bgcolor: step === 4 ? "success.main" : "primary.main",
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {step}
+                  </Box>
+                </ListItemIcon>
+                {step === 1 && (
+                  <ListItemText
+                    primary="Abra o aplicativo do seu banco"
+                    secondary="Acesse a área PIX do aplicativo"
+                  />
+                )}
+                {step === 2 && (
+                  <ListItemText
+                    primary="Escolha pagar com QR Code ou Pix Copia e Cola"
+                    secondary="Use uma das opções disponíveis abaixo"
+                  />
+                )}
+                {step === 3 && (
+                  <ListItemText
+                    primary="Confirme o pagamento"
+                    secondary="Verifique os dados e confirme a transação"
+                  />
+                )}
+                {step === 4 && (
+                  <ListItemText
+                    primary="Pronto! Seu pedido será confirmado automaticamente"
+                    secondary="Você receberá um email com os detalhes"
+                  />
+                )}
+              </ListItem>
+            ))}
           </List>
         </Paper>
 
-        {/* Action Buttons */}
+        {/* botões */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Button
             variant="contained"
@@ -508,7 +468,7 @@ export default function PagamentoPage() {
           </Button>
         </Box>
 
-        {/* Info Alert */}
+        {/* aviso */}
         <Alert severity="info" sx={{ mt: 3 }}>
           <Typography variant="body2">
             <strong>Importante:</strong> O pagamento via PIX é processado
@@ -518,7 +478,7 @@ export default function PagamentoPage() {
         </Alert>
       </Container>
 
-      {/* QR Code Dialog */}
+      {/* dialog QRCode */}
       <Dialog
         open={qrCodeDialogOpen}
         onClose={handleCloseQRCode}
@@ -570,7 +530,7 @@ export default function PagamentoPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
+      {/* snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={4000}

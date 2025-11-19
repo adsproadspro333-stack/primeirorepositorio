@@ -1,10 +1,11 @@
-import { Suspense } from "react"
+// app/pagamento-confirmado/page.tsx
 import PagamentoConfirmadoClient from "./PagamentoConfirmadoClient"
 
-export default function PagamentoConfirmadoPage() {
-  return (
-    <Suspense fallback={<div>Carregando informações do pagamento...</div>}>
-      <PagamentoConfirmadoClient />
-    </Suspense>
-  )
+type Props = {
+  searchParams: { orderId?: string }
+}
+
+export default function PagamentoConfirmadoPage({ searchParams }: Props) {
+  const orderId = searchParams?.orderId ?? undefined
+  return <PagamentoConfirmadoClient orderIdFromSearch={orderId} />
 }
