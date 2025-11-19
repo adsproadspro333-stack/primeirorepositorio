@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     if (!cpfRaw) {
       return NextResponse.json(
         { ok: false, error: "CPF obrigatório" },
-        { status: 400 },
+        { status: 400 }
       )
     }
 
@@ -19,16 +19,23 @@ export async function POST(req: Request) {
       where: { cpf },
     })
 
+    // Nenhum usuário → nenhuma compra
     if (!user) {
       return NextResponse.json({ ok: true, orders: [] })
     }
 
+    // 🔥 PUXA SOMENTE PEDIDOS PAGOS (order.status = "paid")
     const orders = await prisma.order.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" }, // se existir createdAt
+      where: {
+        userId: user.id,
+        status: "paid", // << ESSA LINHA FAZ TUDO FUNCIONAR
+      },
+      orderBy: { createdAt: "desc" },
       include: {
-        transactions: true,
         tickets: true,
+        transactions: {
+          where: { status: "paid" }, // garante transação paga também
+        },
       },
     })
 
@@ -36,7 +43,6 @@ export async function POST(req: Request) {
       id: o.id,
       amount: o.amount,
       status: o.status,
-      // se não tiver createdAt no modelo, remove essa linha:
       createdAt: (o as any).createdAt ?? null,
       numbers: o.tickets?.map((t) => t.number) ?? [],
       transactions: o.transactions?.map((t) => ({
@@ -52,7 +58,7 @@ export async function POST(req: Request) {
     console.error("ERRO /api/minhas-compras:", err)
     return NextResponse.json(
       { ok: false, error: err?.message || "Erro inesperado" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
