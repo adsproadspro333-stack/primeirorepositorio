@@ -5,27 +5,30 @@ import { prisma } from "@/lib/prisma"
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const cpfRaw = body?.cpf as string | undefined
+    const cpfRaw = String(body?.cpf || "").trim()
 
-    if (!cpfRaw) {
+    const cpf = cpfRaw.replace(/\D/g, "")
+
+    console.log("🔎 BUSCA MINHAS COMPRAS CPF:", cpf)
+
+    if (!cpf || cpf.length < 11) {
       return NextResponse.json(
-        { ok: false, error: "CPF obrigatório" },
+        { ok: false, error: "CPF inválido" },
         { status: 400 },
       )
     }
 
-    // normaliza CPF (só dígitos)
-    const cpf = cpfRaw.replace(/\D/g, "")
-
+    // 1) Busca usuário pelo CPF
     const user = await prisma.user.findUnique({
       where: { cpf },
     })
 
-    // se não achou usuário, retorna lista vazia
     if (!user) {
+      console.log("Nenhum usuário encontrado para CPF:", cpf)
       return NextResponse.json({ ok: true, orders: [] })
     }
 
+    // 2) Busca pedidos desse usuário
     const orders = await prisma.order.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -35,26 +38,24 @@ export async function POST(req: Request) {
       },
     })
 
-    const result = orders.map((o) => {
-      // quantidade vinda da coluna quantity (combos / ticket único)
-      const qFromOrder = o.quantity ?? 0
-      // quantidade vinda da quantidade de tickets (um número por linha)
-      const qFromTickets = o.tickets?.length ?? 0
+    console.log("Pedidos encontrados:", orders.length)
 
-      // prioridade: quantity da Order > quantidade de tickets > 0
+    const result = orders.map((o) => {
+      const qFromOrder = o.quantity ?? 0
+      const qFromTickets = o.tickets?.length ?? 0
       const quantity = qFromOrder || qFromTickets || 0
 
-      // ID amigável pro cliente (baseado no UUID)
+      // ID visível para o cliente
       const rawId = (o.id ?? "").replace(/-/g, "")
       const displayOrderCode = "#" + rawId.slice(-6).toUpperCase()
 
       return {
-        id: o.id,                      // id real (uuid) – interno
-        displayOrderCode,              // id curtinho mostrado pro cliente
+        id: o.id,
+        displayOrderCode,
         amount: o.amount,
         status: o.status,
-        createdAt: o.createdAt,
-        quantity,                      // qtde de números exibida no front
+        createdAt: o.createdAt ? o.createdAt.toISOString() : null,
+        quantity,
         numbers: o.tickets?.map((t) => t.number) ?? [],
         transactions:
           o.transactions?.map((t) => ({
@@ -70,7 +71,10 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("ERRO /api/minhas-compras:", err)
     return NextResponse.json(
-      { ok: false, error: err?.message || "Erro inesperado" },
+      {
+        ok: false,
+        error: err?.message || "Erro inesperado ao buscar pedidos",
+      },
       { status: 500 },
     )
   }
