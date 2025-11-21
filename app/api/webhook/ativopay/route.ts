@@ -3,36 +3,35 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
-// Status da Ativo que vamos tratar como "pago"
-const PAID_STATUSES = ["PAID", "APPROVED", "CONFIRMED"]
+// Status que indicam pagamento confirmado
+const PAID_STATUSES = ["PAID", "APPROVED", "CONFIRMED", "SUCCESS"]
 
 export async function POST(req: Request) {
   try {
-    // Lê o corpo como texto pra logar certinho
     const bodyText = await req.text()
-
-    console.log("WEBHOOK ATIVOPAY RAW BODY:", bodyText)
+    console.log("WEBHOOK RAW BODY:", bodyText)
 
     let json: any
     try {
       json = bodyText ? JSON.parse(bodyText) : {}
     } catch (e) {
-      console.error("WEBHOOK ATIVOPAY: body não é JSON válido:", e)
+      console.error("WEBHOOK: body não é JSON válido:", e)
       return NextResponse.json(
         { ok: false, error: "Invalid JSON" },
         { status: 400 },
       )
     }
 
-    // Pega o objeto da transação dentro do payload
-    // baseado no formato mais comum da AtivoPay
-    const tx = json?.data ?? json?.transaction ?? json
+    // Normalização do payload (Umbrella + Ativo)
+    const tx =
+      json?.data ||
+      json?.transaction ||
+      json?.object ||
+      json?.payload ||
+      json
 
     if (!tx) {
-      console.error(
-        "WEBHOOK ATIVOPAY: sem campo data/transaction no payload:",
-        json,
-      )
+      console.error("WEBHOOK: payload inválido:", json)
       return NextResponse.json(
         { ok: false, error: "Invalid payload" },
         { status: 400 },
@@ -40,51 +39,53 @@ export async function POST(req: Request) {
     }
 
     const gatewayId: string | null =
-      tx.id || tx.transactionId || tx.externalRef || null
+      tx.id ||
+      tx.objectId ||
+      tx.transactionId ||
+      tx.externalRef ||
+      null
 
-    const status: string | null =
-      tx.status || tx.transactionStatus || null
+    const rawStatus: string | null =
+      tx.status ||
+      tx.paymentStatus ||
+      tx.transactionStatus ||
+      json?.event ||
+      null
 
-    console.log("WEBHOOK ATIVOPAY TX NORMALIZADO:", {
+    console.log("WEBHOOK NORMALIZADO:", {
       gatewayId,
-      status,
+      rawStatus,
     })
 
-    if (!gatewayId || !status) {
-      console.error(
-        "WEBHOOK ATIVOPAY: faltando gatewayId ou status:",
-        { gatewayId, status },
-      )
+    if (!gatewayId || !rawStatus) {
+      console.error("WEBHOOK: faltando gatewayId ou status", {
+        gatewayId,
+        rawStatus,
+      })
       return NextResponse.json(
         { ok: false, error: "Missing fields" },
         { status: 400 },
       )
     }
 
-    // Se não for status considerado "pago", só ignora
-    if (!PAID_STATUSES.includes(status.toUpperCase())) {
-      console.log(
-        "WEBHOOK ATIVOPAY: status não é pago, ignorando:",
-        status,
-      )
+    const statusUpper = rawStatus.toUpperCase()
+
+    if (!PAID_STATUSES.includes(statusUpper)) {
+      console.log("WEBHOOK: status ignorado:", statusUpper)
       return NextResponse.json({ ok: true, ignored: true })
     }
 
-    // 1) Localiza transação pelo gatewayId (PODE não ser unique, por isso findFirst)
+    // Busca transação pelo gatewayId
     const transaction = await prisma.transaction.findFirst({
       where: { gatewayId },
     })
 
     if (!transaction) {
-      console.error(
-        "WEBHOOK ATIVOPAY: não encontrou transação com gatewayId:",
-        gatewayId,
-      )
-      // devolve 200 pra não ficar reentregando infinito
+      console.error("WEBHOOK: transação não encontrada:", gatewayId)
       return NextResponse.json({ ok: true, notFound: true })
     }
 
-    // 2) Atualiza a transação para "paid"
+    // Atualiza transação
     const updatedTransaction = await prisma.transaction.update({
       where: { id: transaction.id },
       data: {
@@ -92,27 +93,22 @@ export async function POST(req: Request) {
       },
     })
 
-    // 3) Atualiza o pedido para "paid"
+    // Atualiza pedido
     const updatedOrder = await prisma.order.update({
       where: { id: transaction.orderId },
       data: {
         status: "paid",
-        // se quiser, pode adicionar paidAt no futuro
-        // paidAt: new Date(),
       },
     })
 
-    console.log(
-      "WEBHOOK ATIVOPAY: transação e pedido marcados como pagos:",
-      {
-        transactionId: updatedTransaction.id,
-        orderId: updatedOrder.id,
-      },
-    )
+    console.log("WEBHOOK: pagamento confirmado com sucesso:", {
+      transactionId: updatedTransaction.id,
+      orderId: updatedOrder.id,
+    })
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    console.error("ERRO WEBHOOK ATIVOPAY:", err)
+    console.error("ERRO WEBHOOK:", err)
     return NextResponse.json(
       { ok: false, error: err?.message || "Erro inesperado" },
       { status: 500 },
