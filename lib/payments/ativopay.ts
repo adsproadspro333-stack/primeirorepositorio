@@ -65,7 +65,7 @@ export async function createPixTransaction(params: CreatePixParams) {
       },
     },
     metadata: params.metadata ?? "",
-    traceable: params.traceable ?? false,
+    traceable: params.traceable ?? true,
     paymentMethod: "PIX",
   }
 

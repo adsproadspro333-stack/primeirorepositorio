@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       ],
       expiresInDays: 1,
       metadata: body?.metadata || "",
-      traceable: false,
+      traceable: true,
     })
 
     console.log("RESPOSTA ATIVOPAY (createPixTransaction):", resp)
