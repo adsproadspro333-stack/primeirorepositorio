@@ -39,7 +39,7 @@ export async function createPixTransaction(params: CreatePixParams) {
     throw new Error("ATIVO_PAY_BASE_URL ou ATIVO_PAY_API_KEY não configurados")
   }
 
-  const url = `${BASE_URL}/api/user/transactions`
+  const url = `${BASE_URL}/user/transactions`
 
   const candidatePostback = params.postbackUrl || WEBHOOK_URL || undefined
 
