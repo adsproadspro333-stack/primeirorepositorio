@@ -4,6 +4,7 @@ import { useCartStore } from "@/store/cartStore"
 import { formatBRL } from "@/lib/formatCurrency"
 import { useToast } from "./ui/Toast"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
 
 const COMBOS = [
   { id: "combo-1000", quantity: 1000, priceCents: 2990 },
@@ -31,6 +32,7 @@ export default function NumbersAdder() {
   const { addComboToCart } = useCartStore()
   const { show } = useToast()
   const [highlight, setHighlight] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     const t = setTimeout(() => setHighlight(false), 4000)
@@ -39,10 +41,10 @@ export default function NumbersAdder() {
 
   const handleAdd = (combo: typeof COMBOS[0]) => {
     addComboToCart(combo.quantity, combo.priceCents)
-    
+
     let message = ""
     let toastType: "default" | "smart-2500" | "special-5000" | "premium-10000" = "default"
-    
+
     if (combo.quantity === 1000) {
       message = `+${combo.quantity} números adicionados <b>(${formatBRL(combo.priceCents / 100)})</b>`
       toastType = "default"
@@ -56,15 +58,24 @@ export default function NumbersAdder() {
       message = `👑 Combo VIP ativado! +${combo.quantity} números adicionados <b>(${formatBRL(combo.priceCents / 100)})</b>`
       toastType = "premium-10000"
     }
-    
+
     show(message, toastType)
     playClick()
     vibrate(12)
   }
 
+  const handleConcorrer = () => {
+    playClick()
+    vibrate(16)
+    router.push("/dados")
+  }
+
   return (
-    <section className="px-3 sm:px-4 md:px-6 lg:px-8 mt-6 mb-10">
-      <h3 className="text-xl font-bold text-gray-900 text-center" id="adicionar-numeros">
+    <section className="px-3 sm:px-4 md:px-6 lg:px-8 mt-6 mb-24">
+      <h3
+        className="text-xl font-bold text-gray-900 text-center"
+        id="adicionar-numeros"
+      >
         O Segredo dos Ganhadores
       </h3>
       <p className="text-sm text-gray-500 text-center mt-1 mb-4">
@@ -115,6 +126,16 @@ export default function NumbersAdder() {
             <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 hover:ring-white/20" />
           </div>
         ))}
+      </div>
+
+      {/* CTA PRINCIPAL FIXO */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 px-4 py-3 shadow-xl">
+        <button
+          onClick={handleConcorrer}
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-full text-lg transition"
+        >
+          Concorrer agora
+        </button>
       </div>
     </section>
   )
