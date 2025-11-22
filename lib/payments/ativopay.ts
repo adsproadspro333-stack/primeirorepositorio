@@ -1,7 +1,18 @@
 // lib/payments/ativopay.ts
 
-// Normaliza a BASE_URL removendo barras extras no final
-const BASE_URL = (process.env.ATIVO_PAY_BASE_URL ?? "").replace(/\/+$/, "")
+// Garante que a BASE_URL sempre aponte para .../api
+const RAW_BASE_URL =
+  process.env.ATIVO_PAY_BASE_URL ?? "https://api-gateway.umbrellapag.com"
+
+const BASE_URL = (() => {
+  let url = RAW_BASE_URL.trim().replace(/\/+$/, "")
+  // se não terminar com /api, força
+  if (!url.endsWith("/api")) {
+    url = `${url}/api`
+  }
+  return url
+})()
+
 const API_KEY = process.env.ATIVO_PAY_API_KEY!
 
 // Padrão oficial da Umbrella (e pode ser sobrescrito pelo .env)
@@ -35,7 +46,8 @@ type CreatePixParams = {
 }
 
 export async function createPixTransaction(params: CreatePixParams) {
-  console.log("ATIVOPAY BASE_URL:", BASE_URL)
+  console.log("ATIVOPAY RAW_BASE_URL:", RAW_BASE_URL)
+  console.log("ATIVOPAY BASE_URL NORMALIZADA:", BASE_URL)
   console.log("ATIVOPAY API_KEY setada?:", !!API_KEY)
   console.log("ATIVOPAY USER_AGENT:", USER_AGENT)
   console.log("ATIVOPAY WEBHOOK_URL (.env):", WEBHOOK_URL)
