@@ -125,6 +125,12 @@ export async function POST(req: Request) {
       },
     })
 
+    // 3.1) Busca pedido + usuário (pra pegar CPF do banco)
+    const orderWithUser = await prisma.order.findUnique({
+      where: { id: updatedOrder.id },
+      include: { user: true },
+    })
+
     console.log("WEBHOOK: pagamento confirmado:", {
       transactionId: updatedTransaction.id,
       orderId: updatedOrder.id,
@@ -143,7 +149,7 @@ export async function POST(req: Request) {
           Number(updatedOrder.amount) ||
           0
 
-        // --------- monta user_data a partir do webhook ---------
+        // --------- monta user_data a partir do webhook + banco ---------
         const payerDocument: string | undefined =
           tx?.payer?.documentNumber ||
           tx?.customer?.document?.number ||
@@ -160,6 +166,7 @@ export async function POST(req: Request) {
 
         const userData: any = {}
 
+        // 4.1 – dados vindos do webhook (quando existirem)
         if (payerEmail) {
           userData.em = [sha256(payerEmail)]
         }
@@ -170,7 +177,16 @@ export async function POST(req: Request) {
           userData.external_id = [sha256(payerDocument)]
         }
 
-        // também ajuda a Meta: IP + user-agent
+        // 4.2 – fallback: CPF salvo no banco (sempre que existir)
+        const dbCpf = orderWithUser?.user?.cpf
+        if (dbCpf) {
+          // se ainda não tiver external_id do webhook, usa o do banco
+          if (!userData.external_id) {
+            userData.external_id = [sha256(dbCpf)]
+          }
+        }
+
+        // 4.3 – IP e user-agent
         if (tx?.ip) {
           userData.client_ip_address = tx.ip
         }
