@@ -189,7 +189,7 @@ export async function POST(req: Request) {
           quantity: 1,
           tangible: false,
           unitPrice: amountInCents,
-          externalRef: body?.externalRef || order.id,
+          externalRef: String(body?.externalRef || order.id),
         },
       ],
       expiresInDays: 1,
@@ -244,7 +244,7 @@ export async function POST(req: Request) {
     }
 
     // -------------------------------------------------
-    // 6) Transação
+    // 6) Transação no banco
     // -------------------------------------------------
     const transaction = await prisma.transaction.create({
       data: {
@@ -258,16 +258,25 @@ export async function POST(req: Request) {
     // -------------------------------------------------
     // 6.1) Pushcut – Notificação de PEDIDO GERADO
     // -------------------------------------------------
-    await sendPushcutNotification(PUSHCUT_ORDER_CREATED_URL, {
-      type: "order_created",
-      orderId: order.id,
-      transactionId: transaction.id,
-      amount: amountInCents / 100,
-      quantity: effectiveQty,
-      customerName: customer?.name || null,
-      customerEmail: customer?.email || null,
-      createdAt: new Date().toISOString(),
-    })
+    if (PUSHCUT_ORDER_CREATED_URL) {
+      try {
+        await sendPushcutNotification(PUSHCUT_ORDER_CREATED_URL, {
+          type: "order_created",
+          orderId: order.id,
+          transactionId: transaction.id,
+          amount: amountInCents / 100,
+          quantity: effectiveQty,
+          customerName: customer?.name || null,
+          customerEmail: customer?.email || null,
+          createdAt: new Date().toISOString(),
+        })
+      } catch (pushErr) {
+        console.error("⚠️ Erro ao enviar notificação Pushcut:", pushErr)
+        // não quebra o fluxo do pagamento
+      }
+    } else {
+      console.warn("⚠️ PUSHCUT_ORDER_CREATED_URL não configurada. Pulando Pushcut.")
+    }
 
     // -------------------------------------------------
     // 6.2) Facebook CAPI – InitiateCheckout
@@ -371,7 +380,8 @@ export async function POST(req: Request) {
         pixCopiaECola,
         qrCodeBase64,
         expiresAt,
-        fbEventId, // usar no front se quiser deduplicar com fbq
+        // fbEventId pode ser usado no front para deduplicação com fbq
+        fbEventId,
       },
       { status: 200 },
     )
