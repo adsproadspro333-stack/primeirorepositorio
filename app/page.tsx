@@ -9,7 +9,7 @@ import NumbersAdder from "./components/NumbersAdder"
 import WinnersList from "./components/WinnersList"
 import FooterLegal from "./components/FooterLegal"
 import SocialProofNotifications from "./components/SocialProofNotifications"
-import { trackViewContent } from "@/app/lib/fbq"
+import { trackViewContent } from "@/lib/fbq"
 
 export default function HomePage() {
   useEffect(() => {
