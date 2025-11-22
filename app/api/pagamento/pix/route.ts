@@ -2,14 +2,28 @@ import { NextResponse } from "next/server"
 import { createPixTransaction } from "@/lib/payments/ativopay"
 import { prisma } from "@/lib/prisma"
 import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
+import crypto from "crypto"
 
 const MIN_NUMBERS = 100
+
+// Helper pra hashear em SHA256 (recomendado pelo Facebook)
+function sha256(value: string) {
+  return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex")
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
 
     console.log("REQUEST /api/pagamento/pix BODY:", body)
+
+    // -------------------------------------------------
+    // 0) Dados de contexto (IP / User-Agent) pro CAPI
+    // -------------------------------------------------
+    const headers = req.headers
+    const userAgent = headers.get("user-agent") || undefined
+    const ipHeader = headers.get("x-forwarded-for") || headers.get("x-real-ip") || ""
+    const clientIpAddress = ipHeader.split(",")[0]?.trim() || undefined
 
     // -------------------------------------------------
     // 1) TOTAL EM CENTAVOS
@@ -239,6 +253,98 @@ export async function POST(req: Request) {
     })
 
     // -------------------------------------------------
+    // 6.1) Facebook CAPI – InitiateCheckout
+    // -------------------------------------------------
+    const fbPixelId =
+      process.env.FB_PIXEL_ID ||
+      process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID ||
+      "" // se quiser, pode deixar default no código
+
+    const fbAccessToken = process.env.FB_ACCESS_TOKEN || ""
+    const fbTestEventCode = process.env.FB_TEST_EVENT_CODE // opcional
+
+    // event_id para deduplicação com o front
+    const fbEventId = crypto.randomUUID()
+
+    if (fbPixelId && fbAccessToken) {
+      const eventTime = Math.floor(Date.now() / 1000)
+
+      // user_data recomendado com hash
+      const userData: any = {}
+
+      if (customer?.email) {
+        userData.em = [sha256(String(customer.email))]
+      }
+      if (phone) {
+        userData.ph = [sha256(phone)]
+      }
+      if (documentNumber) {
+        // cpf/cnpj como external_id
+        userData.external_id = [sha256(documentNumber)]
+      }
+      if (clientIpAddress) {
+        userData.client_ip_address = clientIpAddress
+      }
+      if (userAgent) {
+        userData.client_user_agent = userAgent
+      }
+
+      const customData: any = {
+        value: amountInCents / 100,
+        currency: "BRL",
+        num_items: effectiveQty,
+        order_id: order.id,
+        contents: [
+          {
+            id: String(order.id),
+            quantity: effectiveQty,
+            item_price: amountInCents / 100,
+          },
+        ],
+        content_type: "product",
+      }
+
+      const payload: any = {
+        data: [
+          {
+            event_name: "InitiateCheckout",
+            event_time: eventTime,
+            event_id: fbEventId,
+            action_source: "website",
+            event_source_url: body?.eventSourceUrl || undefined, // opcional, manda do front
+            user_data: userData,
+            custom_data: customData,
+          },
+        ],
+      }
+
+      if (fbTestEventCode) {
+        payload.test_event_code = fbTestEventCode
+      }
+
+      try {
+        const url = `https://graph.facebook.com/v21.0/${fbPixelId}/events?access_token=${fbAccessToken}`
+
+        const fbResp = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+
+        const fbJson = await fbResp.json()
+        console.log("📡 FB CAPI InitiateCheckout resp:", fbJson)
+      } catch (capErr) {
+        console.error("❌ Erro ao enviar evento para Facebook CAPI:", capErr)
+      }
+    } else {
+      console.warn(
+        "⚠️ FB_PIXEL_ID ou FB_ACCESS_TOKEN não configurados. Pulando envio CAPI.",
+      )
+    }
+
+    // -------------------------------------------------
     // 7) Retorno pro front
     // -------------------------------------------------
     return NextResponse.json(
@@ -250,6 +356,7 @@ export async function POST(req: Request) {
         pixCopiaECola,
         qrCodeBase64,
         expiresAt,
+        fbEventId, // 👈 usar no front junto com fbq('track', 'InitiateCheckout', { event_id: fbEventId })
       },
       { status: 200 },
     )

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Box, Container, Paper, Typography } from "@mui/material"
 import HeroBanner from "./components/HeroBanner"
 import SalesProgress from "./components/SalesProgress"
@@ -8,8 +9,19 @@ import NumbersAdder from "./components/NumbersAdder"
 import WinnersList from "./components/WinnersList"
 import FooterLegal from "./components/FooterLegal"
 import SocialProofNotifications from "./components/SocialProofNotifications"
+import { trackViewContent } from "@/app/lib/fbq"
 
 export default function HomePage() {
+  useEffect(() => {
+    // Dispara quando a página principal é carregada
+    trackViewContent({
+      content_name: "CHRYS Prêmios - Rifa Principal",
+      content_category: "rifa",
+      currency: "BRL",
+      value: 0.1, // valor médio por número em REAIS (ajusta se mudar preço)
+    })
+  }, [])
+
   return (
     <Box sx={{ bgcolor: "#F2F2F2", minHeight: "100vh" }}>
       <HeroBanner />
@@ -27,10 +39,17 @@ export default function HomePage() {
             color: "white",
           }}
         >
-          <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: "1.5rem", sm: "2.125rem" } }}>
+          <Typography
+            variant="h4"
+            fontWeight={700}
+            sx={{ fontSize: { xs: "1.5rem", sm: "2.125rem" } }}
+          >
             Por apenas R$ 0,10
           </Typography>
-          <Typography variant="body1" sx={{ mt: 1, fontSize: { xs: "0.875rem", sm: "1rem" } }}>
+          <Typography
+            variant="body1"
+            sx={{ mt: 1, fontSize: { xs: "0.875rem", sm: "1rem" } }}
+          >
             Você pode concorrer a prêmios incríveis!
           </Typography>
         </Paper>
