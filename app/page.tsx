@@ -10,16 +10,28 @@ import WinnersList from "./components/WinnersList"
 import FooterLegal from "./components/FooterLegal"
 import SocialProofNotifications from "./components/SocialProofNotifications"
 import { trackViewContent } from "@/app/lib/fbq"
+import crypto from "crypto"
 
 export default function HomePage() {
   useEffect(() => {
-    // Dispara quando a página principal é carregada
-    trackViewContent({
-      content_name: "CHRYS Prêmios - Rifa Principal",
-      content_category: "rifa",
-      currency: "BRL",
-      value: 0.1, // valor médio por número em REAIS (ajusta se mudar preço)
-    })
+    // Gera event_id único para deduplicação (Pixel + CAPI)
+    const eventId = crypto.randomUUID()
+
+    try {
+      trackViewContent({
+        content_name: "CHRYS Prêmios - Rifa Principal",
+        content_category: "rifa",
+        content_ids: ["rifa_chrys_principal"],
+        content_type: "product_group",
+        currency: "BRL",
+        value: 0.1,
+        event_id: eventId,
+      })
+
+      console.log("✅ ViewContent enviado com sucesso:", eventId)
+    } catch (err) {
+      console.warn("⚠️ Erro ao disparar ViewContent:", err)
+    }
   }, [])
 
   return (
@@ -37,6 +49,7 @@ export default function HomePage() {
             textAlign: "center",
             bgcolor: "primary.main",
             color: "white",
+            borderRadius: 2,
           }}
         >
           <Typography
