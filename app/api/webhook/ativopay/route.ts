@@ -1,7 +1,8 @@
-// app/api/webhooks/ativopay/route.ts
+// app/api/webhook/ativopay/route.ts
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import crypto from "crypto"
 
 // Status que indicam pagamento confirmado
 const PAID_STATUSES = [
@@ -17,7 +18,16 @@ const PAID_STATUSES = [
 const FB_PIXEL_ID = process.env.FACEBOOK_PIXEL_ID
 const FB_CAPI_TOKEN = process.env.FACEBOOK_CAPI_TOKEN
 const SITE_URL =
-  process.env.SITE_URL || "https://primeirorepositorio-production.up.railway.app"
+  process.env.SITE_URL ||
+  "https://primeirorepositorio-production.up.railway.app"
+
+// helper para SHA256 (recomendado pelo Facebook)
+function sha256(value: string) {
+  return crypto
+    .createHash("sha256")
+    .update(value.trim().toLowerCase())
+    .digest("hex")
+}
 
 export async function POST(req: Request) {
   try {
@@ -127,11 +137,49 @@ export async function POST(req: Request) {
       try {
         const eventTime = Math.floor(Date.now() / 1000)
 
-        // garante que value é número
+        // valor em número (reais)
         const valueNumber =
           Number(updatedTransaction.value) ||
           Number(updatedOrder.amount) ||
           0
+
+        // --------- monta user_data a partir do webhook ---------
+        const payerDocument: string | undefined =
+          tx?.payer?.documentNumber ||
+          tx?.customer?.document?.number ||
+          undefined
+
+        const payerEmail: string | undefined = tx?.customer?.email || undefined
+
+        const payerPhoneRaw: string | undefined =
+          tx?.customer?.phone || undefined
+
+        const payerPhoneDigits = payerPhoneRaw
+          ? payerPhoneRaw.replace(/\D/g, "")
+          : ""
+
+        const userData: any = {}
+
+        if (payerEmail) {
+          userData.em = [sha256(payerEmail)]
+        }
+        if (payerPhoneDigits) {
+          userData.ph = [sha256(payerPhoneDigits)]
+        }
+        if (payerDocument) {
+          userData.external_id = [sha256(payerDocument)]
+        }
+
+        // também ajuda a Meta: IP + user-agent
+        if (tx?.ip) {
+          userData.client_ip_address = tx.ip
+        }
+        const ua = req.headers.get("user-agent")
+        if (ua) {
+          userData.client_user_agent = ua
+        }
+
+        console.log("META CAPI user_data montado:", userData)
 
         const capiBody = {
           data: [
@@ -139,7 +187,7 @@ export async function POST(req: Request) {
               event_name: "Purchase",
               event_time: eventTime,
               action_source: "website",
-              event_id: String(updatedTransaction.id), // ajuda na deduplicação futura
+              event_id: String(updatedTransaction.id),
               event_source_url: `${SITE_URL}/pagamento-confirmado?orderId=${updatedOrder.id}`,
               custom_data: {
                 currency: "BRL",
@@ -154,10 +202,7 @@ export async function POST(req: Request) {
                 ],
                 content_type: "product",
               },
-              user_data: {
-                // futuramente podemos enviar email/telefone hash aqui
-                // ex: em: hashedEmail
-              },
+              user_data: userData,
             },
           ],
         }
