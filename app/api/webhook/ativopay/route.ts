@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import crypto from "crypto"
+import { sendPushcutNotification } from "@/lib/pushcut"
 
 // Status que indicam pagamento confirmado
 const PAID_STATUSES = [
@@ -21,6 +22,9 @@ const FB_TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE
 const SITE_URL =
   process.env.SITE_URL ||
   "https://primeirorepositorio-production.up.railway.app"
+
+// Pushcut
+const PUSHCUT_ORDER_PAID_URL = process.env.PUSHCUT_ORDER_PAID_URL
 
 // helper para SHA256 (recomendado pelo Facebook)
 function sha256(value: string) {
@@ -138,6 +142,22 @@ export async function POST(req: Request) {
     })
 
     // ======================================================
+    // 3.2) PUSH CUT – notificação de PEDIDO PAGO
+    // ======================================================
+    if (PUSHCUT_ORDER_PAID_URL) {
+      await sendPushcutNotification(PUSHCUT_ORDER_PAID_URL, {
+        type: "order_paid",
+        orderId: updatedOrder.id,
+        transactionId: updatedTransaction.id,
+        amount:
+          updatedTransaction.value ??
+          updatedOrder.amount ??
+          null,
+        paidAt: new Date().toISOString(),
+      })
+    }
+
+    // ======================================================
     // 4) DISPARA EVENTO PURCHASE VIA META CAPI (SERVER-SIDE)
     // ======================================================
     if (FB_PIXEL_ID && FB_CAPI_TOKEN) {
@@ -156,7 +176,8 @@ export async function POST(req: Request) {
           tx?.customer?.document?.number ||
           undefined
 
-        const payerEmail: string | undefined = tx?.customer?.email || undefined
+        const payerEmail: string | undefined =
+          tx?.customer?.email || undefined
 
         const payerPhoneRaw: string | undefined =
           tx?.customer?.phone || undefined
