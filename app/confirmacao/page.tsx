@@ -17,7 +17,7 @@ import {
 } from "@mui/material"
 import { Icon } from "@iconify/react"
 import { useCartStore } from "@/store/cartStore"
-import { formatBRL } from "@/app/lib/formatCurrency"
+import { formatBRL } from "@/lib/formatCurrency"
 
 interface CustomerData {
   cpf: string

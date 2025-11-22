@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useCartStore } from "@/store/cartStore"
-import { formatBRL } from "@/app/lib/formatCurrency"
+import { formatBRL } from "@/lib/formatCurrency"
 import { useToast } from "./ui/Toast"
 import { cn } from "@/lib/utils"
 

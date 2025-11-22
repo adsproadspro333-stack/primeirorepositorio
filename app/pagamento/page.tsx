@@ -25,7 +25,7 @@ import {
 import { Icon } from "@iconify/react"
 import QRCode from "react-qr-code"
 import { useCartStore } from "@/store/cartStore"
-import { formatBRL } from "@/app/lib/formatCurrency"
+import { formatBRL } from "@/lib/formatCurrency"
 import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
 
 type OrderDTO = { id: string; amount: number; quantity: number }

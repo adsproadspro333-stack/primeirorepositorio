@@ -12,7 +12,7 @@ import {
   Divider,
   CircularProgress,
 } from "@mui/material"
-import { formatBRL } from "@/app/lib/formatCurrency"
+import { formatBRL } from "@/lib/formatCurrency"
 import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
 
 type Props = {

@@ -6,7 +6,7 @@ import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline"
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline"
 import { useRouter } from 'next/navigation'
 import { useCartStore } from "@/store/cartStore"
-import { formatBRL } from "@/app/lib/formatCurrency"
+import { formatBRL } from "@/lib/formatCurrency"
 import { useToast } from "./ui/Toast"
 
 const PRESETS = [
