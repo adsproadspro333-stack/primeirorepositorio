@@ -10,12 +10,12 @@ import WinnersList from "./components/WinnersList"
 import FooterLegal from "./components/FooterLegal"
 import SocialProofNotifications from "./components/SocialProofNotifications"
 import { trackViewContent } from "@/app/lib/fbq"
-import crypto from "crypto"
 
 export default function HomePage() {
   useEffect(() => {
-    // Gera event_id único para deduplicação (Pixel + CAPI)
-    const eventId = crypto.randomUUID()
+    // Gera um event_id simples para deduplicação (Pixel + CAPI)
+    const eventId =
+      Date.now().toString() + "-" + Math.random().toString(36).slice(2)
 
     try {
       trackViewContent({
@@ -24,7 +24,7 @@ export default function HomePage() {
         content_ids: ["rifa_chrys_principal"],
         content_type: "product_group",
         currency: "BRL",
-        value: 0.1,
+        value: 0.1, // valor médio por número em REAIS (ajusta se mudar preço)
         event_id: eventId,
       })
 
