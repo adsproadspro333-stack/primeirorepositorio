@@ -1,8 +1,13 @@
 // lib/payments/ativopay.ts
 
-const BASE_URL = process.env.ATIVO_PAY_BASE_URL!
+// Normaliza a BASE_URL removendo barras extras no final
+const BASE_URL = (process.env.ATIVO_PAY_BASE_URL ?? "").replace(/\/+$/, "")
 const API_KEY = process.env.ATIVO_PAY_API_KEY!
-const USER_AGENT = process.env.ATIVO_PAY_USER_AGENT || "AtivoB2B/1.0"
+
+// Padrão oficial da Umbrella (e pode ser sobrescrito pelo .env)
+const USER_AGENT = process.env.ATIVO_PAY_USER_AGENT ?? "UMBRELLAB2B/1.0"
+
+// Webhook configurado no .env / Railway
 const WEBHOOK_URL = process.env.ATIVO_PAY_WEBHOOK_URL
 
 type CreatePixParams = {
@@ -30,17 +35,19 @@ type CreatePixParams = {
 }
 
 export async function createPixTransaction(params: CreatePixParams) {
-  console.log("ATIVO BASE_URL:", BASE_URL)
-  console.log("ATIVO API_KEY setada?:", !!API_KEY)
-  console.log("ATIVO USER_AGENT:", USER_AGENT)
-  console.log("ATIVO WEBHOOK_URL (.env):", WEBHOOK_URL)
+  console.log("ATIVOPAY BASE_URL:", BASE_URL)
+  console.log("ATIVOPAY API_KEY setada?:", !!API_KEY)
+  console.log("ATIVOPAY USER_AGENT:", USER_AGENT)
+  console.log("ATIVOPAY WEBHOOK_URL (.env):", WEBHOOK_URL)
 
   if (!BASE_URL || !API_KEY) {
     throw new Error("ATIVO_PAY_BASE_URL ou ATIVO_PAY_API_KEY não configurados")
   }
 
+  // endpoint padrão da Umbrella / AtivoPay
   const url = `${BASE_URL}/user/transactions`
 
+  // prioriza URL passada na chamada, depois .env, sempre exigindo https
   const candidatePostback = params.postbackUrl || WEBHOOK_URL || undefined
 
   const safePostbackUrl =
@@ -116,16 +123,16 @@ export async function createPixTransaction(params: CreatePixParams) {
 
   const pixObj: any = tx.pix || {}
 
-  // 👇 AQUI é o ponto crítico: inclui também qrcode e variações
+  // Tentativas de localizar o código copia-e-cola em diferentes formatos
   const pixCopiaECola =
-    tx.qrCode ||            // raiz CamelCase
-    tx.qrcode ||            // raiz minúscula, se vier
-    tx.pixCode ||           // outro nome comum
-    pixObj.qrCode ||        // dentro de pix CamelCase
-    pixObj.qrcode ||        // dentro de pix minúsculo (o que vemos no log)
-    pixObj.emv ||           // código EMV
-    pixObj.brCode ||        // BR Code
-    pixObj.pixCopy ||       // nome alternativo
+    tx.qrCode || // raiz CamelCase
+    tx.qrcode || // raiz minúscula
+    tx.pixCode || // outro nome comum
+    pixObj.qrCode || // dentro de pix CamelCase
+    pixObj.qrcode || // dentro de pix minúsculo
+    pixObj.emv || // código EMV
+    pixObj.brCode || // BR Code
+    pixObj.pixCopy || // nome alternativo
     null
 
   const qrCodeBase64 =
