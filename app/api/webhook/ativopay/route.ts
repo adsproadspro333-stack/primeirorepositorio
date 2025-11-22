@@ -17,6 +17,7 @@ const PAID_STATUSES = [
 // Variáveis para Meta CAPI (Railway)
 const FB_PIXEL_ID = process.env.FACEBOOK_PIXEL_ID
 const FB_CAPI_TOKEN = process.env.FACEBOOK_CAPI_TOKEN
+const FB_TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE
 const SITE_URL =
   process.env.SITE_URL ||
   "https://primeirorepositorio-production.up.railway.app"
@@ -179,11 +180,8 @@ export async function POST(req: Request) {
 
         // 4.2 – fallback: CPF salvo no banco (sempre que existir)
         const dbCpf = orderWithUser?.user?.cpf
-        if (dbCpf) {
-          // se ainda não tiver external_id do webhook, usa o do banco
-          if (!userData.external_id) {
-            userData.external_id = [sha256(dbCpf)]
-          }
+        if (dbCpf && !userData.external_id) {
+          userData.external_id = [sha256(dbCpf)]
         }
 
         // 4.3 – IP e user-agent
@@ -197,7 +195,7 @@ export async function POST(req: Request) {
 
         console.log("META CAPI user_data montado:", userData)
 
-        const capiBody = {
+        const capiBody: any = {
           data: [
             {
               event_name: "Purchase",
@@ -223,6 +221,11 @@ export async function POST(req: Request) {
           ],
         }
 
+        // 👉 agora os eventos de Purchase entram na aba "Testar eventos"
+        if (FB_TEST_EVENT_CODE) {
+          capiBody.test_event_code = FB_TEST_EVENT_CODE
+        }
+
         const capiUrl = `https://graph.facebook.com/v21.0/${FB_PIXEL_ID}/events?access_token=${FB_CAPI_TOKEN}`
 
         const capiRes = await fetch(capiUrl, {
@@ -237,7 +240,6 @@ export async function POST(req: Request) {
         console.log("META CAPI RESPONSE:", capiRes.status, capiText)
       } catch (err) {
         console.error("Erro ao enviar Purchase para Meta:", err)
-        // não quebra o fluxo principal do webhook
       }
     } else {
       console.log("META CAPI não configurada (variáveis ausentes)", {
