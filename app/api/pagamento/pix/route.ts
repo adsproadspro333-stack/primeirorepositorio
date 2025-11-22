@@ -3,8 +3,11 @@ import { createPixTransaction } from "@/lib/payments/ativopay"
 import { prisma } from "@/lib/prisma"
 import { UNIT_PRICE_CENTS } from "@/app/config/pricing"
 import crypto from "crypto"
+import { sendPushcutNotification } from "@/lib/pushcut"
 
 const MIN_NUMBERS = 100
+
+const PUSHCUT_ORDER_CREATED_URL = process.env.PUSHCUT_ORDER_CREATED_URL
 
 // Helper pra SHA256 (recomendado pelo Facebook)
 function sha256(value: string) {
@@ -25,7 +28,8 @@ export async function POST(req: Request) {
     // -------------------------------------------------
     const headers = req.headers
     const userAgent = headers.get("user-agent") || undefined
-    const ipHeader = headers.get("x-forwarded-for") || headers.get("x-real-ip") || ""
+    const ipHeader =
+      headers.get("x-forwarded-for") || headers.get("x-real-ip") || ""
     const clientIpAddress = ipHeader.split(",")[0]?.trim() || undefined
 
     // -------------------------------------------------
@@ -252,7 +256,21 @@ export async function POST(req: Request) {
     })
 
     // -------------------------------------------------
-    // 6.1) Facebook CAPI – InitiateCheckout
+    // 6.1) Pushcut – Notificação de PEDIDO GERADO
+    // -------------------------------------------------
+    await sendPushcutNotification(PUSHCUT_ORDER_CREATED_URL, {
+      type: "order_created",
+      orderId: order.id,
+      transactionId: transaction.id,
+      amount: amountInCents / 100,
+      quantity: effectiveQty,
+      customerName: customer?.name || null,
+      customerEmail: customer?.email || null,
+      createdAt: new Date().toISOString(),
+    })
+
+    // -------------------------------------------------
+    // 6.2) Facebook CAPI – InitiateCheckout
     // -------------------------------------------------
     const fbPixelId =
       process.env.FACEBOOK_PIXEL_ID ||
