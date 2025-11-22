@@ -4,7 +4,14 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
 // Status que indicam pagamento confirmado
-const PAID_STATUSES = ["PAID", "APPROVED", "CONFIRMED", "SUCCESS"]
+const PAID_STATUSES = [
+  "PAID",
+  "APPROVED",
+  "CONFIRMED",
+  "SUCCESS",
+  "COMPLETED",
+  "SUCCEEDED",
+]
 
 // Variáveis para Meta CAPI (Railway)
 const FB_PIXEL_ID = process.env.FACEBOOK_PIXEL_ID
@@ -58,9 +65,12 @@ export async function POST(req: Request) {
       json?.event ||
       null
 
+    const statusUpper = rawStatus ? rawStatus.toUpperCase() : null
+
     console.log("WEBHOOK NORMALIZADO:", {
       gatewayId,
       rawStatus,
+      statusUpper,
     })
 
     if (!gatewayId || !rawStatus) {
@@ -74,9 +84,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const statusUpper = rawStatus.toUpperCase()
-
-    if (!PAID_STATUSES.includes(statusUpper)) {
+    if (!statusUpper || !PAID_STATUSES.includes(statusUpper)) {
       console.log("WEBHOOK: status ignorado:", statusUpper)
       return NextResponse.json({ ok: true, ignored: true })
     }
@@ -119,8 +127,11 @@ export async function POST(req: Request) {
       try {
         const eventTime = Math.floor(Date.now() / 1000)
 
-        const value =
-          updatedTransaction.value || updatedOrder.amount || 0
+        // garante que value é número
+        const valueNumber =
+          Number(updatedTransaction.value) ||
+          Number(updatedOrder.amount) ||
+          0
 
         const capiBody = {
           data: [
@@ -128,11 +139,20 @@ export async function POST(req: Request) {
               event_name: "Purchase",
               event_time: eventTime,
               action_source: "website",
-              event_id: updatedTransaction.id, // ajuda na deduplicação futura
+              event_id: String(updatedTransaction.id), // ajuda na deduplicação futura
               event_source_url: `${SITE_URL}/pagamento-confirmado?orderId=${updatedOrder.id}`,
               custom_data: {
                 currency: "BRL",
-                value,
+                value: valueNumber,
+                order_id: updatedOrder.id,
+                contents: [
+                  {
+                    id: String(updatedOrder.id),
+                    quantity: updatedOrder.quantity ?? 1,
+                    item_price: valueNumber,
+                  },
+                ],
+                content_type: "product",
               },
               user_data: {
                 // futuramente podemos enviar email/telefone hash aqui
@@ -142,7 +162,7 @@ export async function POST(req: Request) {
           ],
         }
 
-        const capiUrl = `https://graph.facebook.com/v19.0/${FB_PIXEL_ID}/events?access_token=${FB_CAPI_TOKEN}`
+        const capiUrl = `https://graph.facebook.com/v21.0/${FB_PIXEL_ID}/events?access_token=${FB_CAPI_TOKEN}`
 
         const capiRes = await fetch(capiUrl, {
           method: "POST",
@@ -159,7 +179,10 @@ export async function POST(req: Request) {
         // não quebra o fluxo principal do webhook
       }
     } else {
-      console.log("META CAPI não configurada (variáveis ausentes)")
+      console.log("META CAPI não configurada (variáveis ausentes)", {
+        FB_PIXEL_ID,
+        FB_CAPI_TOKEN_EXISTE: !!FB_CAPI_TOKEN,
+      })
     }
 
     return NextResponse.json({ ok: true })

@@ -6,9 +6,12 @@ import crypto from "crypto"
 
 const MIN_NUMBERS = 100
 
-// Helper pra hashear em SHA256 (recomendado pelo Facebook)
+// Helper pra SHA256 (recomendado pelo Facebook)
 function sha256(value: string) {
-  return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex")
+  return crypto
+    .createHash("sha256")
+    .update(value.trim().toLowerCase())
+    .digest("hex")
 }
 
 export async function POST(req: Request) {
@@ -18,7 +21,7 @@ export async function POST(req: Request) {
     console.log("REQUEST /api/pagamento/pix BODY:", body)
 
     // -------------------------------------------------
-    // 0) Dados de contexto (IP / User-Agent) pro CAPI
+    // 0) Dados de contexto pro CAPI (IP / User-Agent)
     // -------------------------------------------------
     const headers = req.headers
     const userAgent = headers.get("user-agent") || undefined
@@ -55,26 +58,22 @@ export async function POST(req: Request) {
     // -------------------------------------------------
     // 2) QUANTIDADE REAL DE NÚMEROS
     // -------------------------------------------------
-    // 2.1 – do array de números (se vier)
     const quantityFromNumbersArray =
       Array.isArray(body.numbers) && body.numbers.length > 0
         ? body.numbers.length
         : 0
 
-    // 2.2 – do campo quantity que o front manda
     const quantityFromBodyRaw = body?.quantity
     const quantityFromBody =
       quantityFromBodyRaw !== undefined && quantityFromBodyRaw !== null
         ? Number(quantityFromBodyRaw) || 0
         : 0
 
-    // 2.3 – derivado do valor (fallback / pior caso)
     const quantityFromAmount =
       UNIT_PRICE_CENTS > 0
         ? Math.round(totalInCents / UNIT_PRICE_CENTS)
         : 0
 
-    // 2.4 – decisão final
     const effectiveQty =
       quantityFromNumbersArray ||
       quantityFromBody ||
@@ -152,7 +151,7 @@ export async function POST(req: Request) {
         userId: user.id,
         amount: amountInCents / 100, // em reais
         status: "pending",
-        quantity: effectiveQty, // 👈 AGORA SEMPRE > 0
+        quantity: effectiveQty,
       },
     })
 
@@ -256,11 +255,11 @@ export async function POST(req: Request) {
     // 6.1) Facebook CAPI – InitiateCheckout
     // -------------------------------------------------
     const fbPixelId =
-      process.env.FB_PIXEL_ID ||
+      process.env.FACEBOOK_PIXEL_ID ||
       process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID ||
-      "" // se quiser, pode deixar default no código
+      ""
 
-    const fbAccessToken = process.env.FB_ACCESS_TOKEN || ""
+    const fbAccessToken = process.env.FACEBOOK_CAPI_TOKEN || ""
     const fbTestEventCode = process.env.FB_TEST_EVENT_CODE // opcional
 
     // event_id para deduplicação com o front
@@ -269,7 +268,6 @@ export async function POST(req: Request) {
     if (fbPixelId && fbAccessToken) {
       const eventTime = Math.floor(Date.now() / 1000)
 
-      // user_data recomendado com hash
       const userData: any = {}
 
       if (customer?.email) {
@@ -279,7 +277,6 @@ export async function POST(req: Request) {
         userData.ph = [sha256(phone)]
       }
       if (documentNumber) {
-        // cpf/cnpj como external_id
         userData.external_id = [sha256(documentNumber)]
       }
       if (clientIpAddress) {
@@ -311,7 +308,7 @@ export async function POST(req: Request) {
             event_time: eventTime,
             event_id: fbEventId,
             action_source: "website",
-            event_source_url: body?.eventSourceUrl || undefined, // opcional, manda do front
+            event_source_url: body?.eventSourceUrl || undefined,
             user_data: userData,
             custom_data: customData,
           },
@@ -340,7 +337,7 @@ export async function POST(req: Request) {
       }
     } else {
       console.warn(
-        "⚠️ FB_PIXEL_ID ou FB_ACCESS_TOKEN não configurados. Pulando envio CAPI.",
+        "⚠️ FACEBOOK_PIXEL_ID ou FACEBOOK_CAPI_TOKEN não configurados. Pulando envio CAPI.",
       )
     }
 
@@ -356,7 +353,7 @@ export async function POST(req: Request) {
         pixCopiaECola,
         qrCodeBase64,
         expiresAt,
-        fbEventId, // 👈 usar no front junto com fbq('track', 'InitiateCheckout', { event_id: fbEventId })
+        fbEventId, // usar no front se quiser deduplicar com fbq
       },
       { status: 200 },
     )
