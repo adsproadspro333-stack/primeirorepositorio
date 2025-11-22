@@ -21,7 +21,7 @@ const FB_CAPI_TOKEN = process.env.FACEBOOK_CAPI_TOKEN
 const FB_TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE
 const SITE_URL =
   process.env.SITE_URL ||
-  "https://primeirorepositorio-production.up.railway.app"
+  "https://chrysdias.plataformapremios.site"
 
 // Pushcut
 const PUSHCUT_ORDER_PAID_URL = process.env.PUSHCUT_ORDER_PAID_URL
