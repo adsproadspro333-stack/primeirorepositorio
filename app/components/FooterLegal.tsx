@@ -12,7 +12,7 @@ export default function FooterLegal() {
 
         <Typography variant="body2" color="text.secondary" paragraph>
           Este é um título de capitalização regido pela SUSEP (Superintendência de Seguros Privados) sob o processo
-          número XXXXX. A participação é voluntária e o sorteio é realizado pela Loteria Federal. Consulte o regulamento
+          número 0947F. A participação é voluntária e o sorteio é realizado pela Loteria Federal. Consulte o regulamento
           completo para mais informações sobre as condições de participação, resgate e premiação.
         </Typography>
 
