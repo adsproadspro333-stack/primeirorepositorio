@@ -6,25 +6,27 @@ import {
   Container,
   Paper,
   Typography,
-  Divider,
   Stack,
   Button,
+  TextField,
+  Divider,
 } from "@mui/material"
 import { useRouter } from "next/navigation"
+
 import HeroBanner from "./components/HeroBanner"
 import SalesProgress from "./components/SalesProgress"
 import QuantitySelector from "./components/QuantitySelector"
 import NumbersAdder from "./components/NumbersAdder"
 import WinnersList from "./components/WinnersList"
-import FooterLegal from "./components/FooterLegal"
 import SocialProofNotifications from "./components/SocialProofNotifications"
+import FooterLegal from "./components/FooterLegal"
+
 import { trackViewContent } from "@/lib/fbq"
 import { useCartStore } from "@/store/cartStore"
 import { formatBRL } from "@/lib/formatCurrency"
 
 export default function HomePage() {
   useEffect(() => {
-    // Gera um event_id simples para deduplicação (Pixel + CAPI)
     const eventId =
       Date.now().toString() + "-" + Math.random().toString(36).slice(2)
 
@@ -35,7 +37,7 @@ export default function HomePage() {
         content_ids: ["rifa_chrys_principal"],
         content_type: "product_group",
         currency: "BRL",
-        value: 0.1, // valor médio por número em REAIS (ajusta se mudar preço)
+        value: 0.1,
         event_id: eventId,
       })
 
@@ -46,134 +48,196 @@ export default function HomePage() {
   }, [])
 
   return (
-    <Box sx={{ bgcolor: "#F2F2F2", minHeight: "100vh" }}>
-      {/* Hero com banner principal */}
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "#F2F2F2", // fundo claro único
+        pb: 18, // espaço pro CTA fixo
+      }}
+    >
+      {/* Banner topo (flyer) */}
       <HeroBanner />
 
-      {/* padding-bottom maior por causa do CTA fixo */}
-      <Container maxWidth="lg" sx={{ pb: 18, px: { xs: 2, sm: 3 } }}>
-        {/* Destaque de preço / headline de oferta */}
+      {/* Conteúdo central estilo app de rifa */}
+      <Container
+        maxWidth="sm"
+        sx={{
+          px: { xs: 2, sm: 0 },
+          pt: 2,
+        }}
+      >
+        {/* 1) COMBOS – logo depois do flyer, igual concorrente */}
         <Paper
           elevation={3}
           sx={{
-            p: { xs: 2, sm: 3 },
-            mt: { xs: 2, sm: 3 },
-            mb: { xs: 2, sm: 3 },
-            textAlign: "center",
-            bgcolor: "primary.main",
-            color: "white",
+            mb: 2,
+            p: 1.8,
             borderRadius: 2,
-          }}
-        >
-          <Typography
-            variant="h4"
-            fontWeight={700}
-            sx={{ fontSize: { xs: "1.5rem", sm: "2.125rem" } }}
-          >
-            Números a partir de R$ 0,10
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{ mt: 1, fontSize: { xs: "0.9rem", sm: "1rem" } }}
-          >
-            Garanta seus números na CHRYS PRÊMIOS e concorra a prêmios reais,
-            com sorteio baseado na Loteria Federal.
-          </Typography>
-        </Paper>
-
-        {/* Faixa de confiança / segurança */}
-        <Paper
-          elevation={0}
-          sx={{
-            mb: { xs: 2.5, sm: 3 },
-            px: { xs: 2, sm: 3 },
-            py: 1.5,
-            borderRadius: 2,
-            bgcolor: "#ffffff",
-            border: "1px solid #E2E8F0",
+            bgcolor: "#FFFFFF",
+            border: "1px solid #E5E7EB",
           }}
         >
           <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.5}
+            direction="row"
             justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
+            alignItems="center"
+            mb={1}
           >
-            <Typography
-              variant="body2"
-              sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, color: "#1F2933" }}
-            >
-              🔒 Pagamento 100% seguro via Pix. Seus dados são protegidos e seus
-              números são gerados automaticamente após a confirmação.
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: { xs: "0.7rem", sm: "0.8rem" },
-                color: "#6B7280",
-                textAlign: { xs: "left", sm: "right" },
-              }}
-            >
-              🎫 Sorteio com base na Loteria Federal. Transparência total para
-              acompanhar as extrações e seus bilhetes.
-            </Typography>
+            <Box>
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: "0.98rem",
+                  color: "#111827",
+                }}
+              >
+                Combos de números
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontSize: "0.8rem",
+                  color: "#6B7280",
+                }}
+              >
+                Selecione um combo pronto para acelerar suas chances.
+              </Typography>
+            </Box>
           </Stack>
+
+          <NumbersAdder />
         </Paper>
 
-        {/* Progresso de vendas */}
-        <Box sx={{ mb: { xs: 2, sm: 3 } }}>
-          <SalesProgress percent={98.1} />
-        </Box>
-
-        {/* Card principal da compra: quantidade + números */}
+        {/* 2) Quantidade personalizada */}
         <Paper
           elevation={3}
-          id="purchase-section"
           sx={{
-            p: { xs: 2, sm: 3 },
-            mb: { xs: 3, sm: 4 },
+            mb: 2,
+            p: 1.8,
             borderRadius: 2,
-            bgcolor: "#ffffff",
+            bgcolor: "#FFFFFF",
+            border: "1px solid #E5E7EB",
           }}
         >
           <Typography
-            variant="h6"
+            variant="subtitle1"
             sx={{
               fontWeight: 700,
-              mb: 1,
-              fontSize: { xs: "1rem", sm: "1.1rem" },
+              mb: 0.6,
+              fontSize: "0.98rem",
+              color: "#111827",
             }}
           >
-            Escolha quantos números você quer garantir
+            Quantidade personalizada
           </Typography>
           <Typography
             variant="body2"
             sx={{
-              mb: 2,
+              mb: 1.4,
+              fontSize: "0.8rem",
               color: "#6B7280",
-              fontSize: { xs: "0.8rem", sm: "0.9rem" },
             }}
           >
-            Quanto mais números você garante, maiores são as suas chances reais
-            de ser o próximo ganhador. Depois da compra, acompanhe tudo em{" "}
-            <strong>“Minhas compras”</strong>.
+            Ajuste manualmente quantos números você quer garantir nesta edição.
           </Typography>
 
-          <Divider sx={{ mb: 2 }} />
+          <Divider sx={{ mb: 1.4 }} />
 
-          {/* Controles existentes */}
           <QuantitySelector />
-          <NumbersAdder />
         </Paper>
 
-        {/* Lista de ganhadores / prova social */}
-        <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+        {/* 3) Cupom de desconto */}
+        <Paper
+          elevation={3}
+          sx={{
+            mb: 2,
+            p: 1.8,
+            borderRadius: 2,
+            bgcolor: "#FFFFFF",
+            border: "1px solid #E5E7EB",
+          }}
+        >
           <Typography
-            variant="h6"
+            variant="subtitle1"
             sx={{
               fontWeight: 700,
-              mb: 1.5,
-              fontSize: { xs: "1rem", sm: "1.1rem" },
+              mb: 0.6,
+              fontSize: "0.98rem",
+              color: "#111827",
+            }}
+          >
+            Cupom de desconto
+          </Typography>
+
+          <Typography
+            variant="body2"
+            sx={{
+              mb: 1.2,
+              fontSize: "0.8rem",
+              color: "#6B7280",
+            }}
+          >
+            Se você tiver um código especial, insira aqui antes de confirmar a
+            participação.
+          </Typography>
+
+          <Stack direction="row" spacing={1}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="DIGITE O CÓDIGO DO CUPOM"
+              sx={{
+                "& .MuiInputBase-root": {
+                  borderRadius: 999,
+                  fontSize: "0.8rem",
+                  bgcolor: "#F9FAFB",
+                },
+              }}
+              InputProps={{
+                sx: {
+                  "& input::placeholder": {
+                    color: "#9CA3AF",
+                  },
+                },
+              }}
+            />
+            <Button
+              variant="outlined"
+              size="small"
+              sx={{
+                px: 2.4,
+                fontWeight: 600,
+                borderRadius: 999,
+                fontSize: "0.78rem",
+                borderColor: "#D1D5DB",
+                color: "#4B5563",
+              }}
+              disabled
+            >
+              Aplicar
+            </Button>
+          </Stack>
+        </Paper>
+
+        {/* 4) Ganhadores recentes (prova social) */}
+        <Paper
+          elevation={3}
+          sx={{
+            mb: 2,
+            p: 1.8,
+            borderRadius: 2,
+            bgcolor: "#FFFFFF",
+            border: "1px solid #E5E7EB",
+          }}
+        >
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              mb: 0.6,
+              fontSize: "0.98rem",
+              color: "#111827",
             }}
           >
             Ganhadores recentes
@@ -181,31 +245,72 @@ export default function HomePage() {
           <Typography
             variant="body2"
             sx={{
-              mb: 2,
+              mb: 1.4,
+              fontSize: "0.8rem",
               color: "#6B7280",
-              fontSize: { xs: "0.8rem", sm: "0.9rem" },
             }}
           >
-            Veja quem já garantiu prêmio com a CHRYS PRÊMIOS. Todos os sorteios
-            são auditáveis e vinculados às extrações oficiais.
+            Confira alguns dos últimos prêmios entregues pela CHRYS PRÊMIOS.
           </Typography>
 
-          <WinnersList initialCount={6} />
-        </Box>
+          <WinnersList initialCount={4} />
+        </Paper>
+
+        {/* 5) Escassez / Progresso de vendas MAIS PARA BAIXO */}
+        <Paper
+          elevation={3}
+          sx={{
+            mb: 3,
+            p: 1.8,
+            borderRadius: 2,
+            bgcolor: "#FFFFFF",
+            border: "1px solid #E5E7EB",
+          }}
+        >
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              mb: 0.8,
+              fontSize: "0.98rem",
+              color: "#111827",
+            }}
+          >
+            Progresso de vendas
+          </Typography>
+
+          <SalesProgress percent={98.1} />
+
+          <Typography
+            variant="caption"
+            sx={{
+              mt: 1,
+              display: "block",
+              fontSize: "0.75rem",
+              color: "#6B7280",
+            }}
+          >
+            Restam apenas <strong>1,9% dos títulos disponíveis</strong>. Garanta
+            sua participação enquanto ainda há números liberados.
+          </Typography>
+        </Paper>
+
+        {/* 6) Texto legal SUSEP (fora do CTA) */}
+        <FooterLegal />
       </Container>
 
-      <FooterLegal />
+      {/* Notificações flutuantes (já com offset que fizemos lá atrás) */}
       <SocialProofNotifications />
 
-      {/* CTA fixo no rodapé */}
+      {/* CTA fixo com seletor + valor + botão Concorrer */}
       <StickyCTA />
     </Box>
   )
 }
 
 /**
- * Barra fixa inferior com seletor clean e botão "Concorrer".
- * Usa os mesmos dados do carrinho (qty/totalInCents) e leva para /dados.
+ * CTA fixo no rodapé: quantidade + valor + seletor + botão "Concorrer".
+ * Sem texto legal (está no FooterLegal).
  */
 function StickyCTA() {
   const router = useRouter()
@@ -214,7 +319,7 @@ function StickyCTA() {
   const MIN_QTY = 100
 
   const inc = () => {
-    handleChangeQuantity(qty + 1) // se quiser outro passo, troca aqui
+    handleChangeQuantity(qty + 1)
   }
 
   const dec = () => {
@@ -235,14 +340,15 @@ function StickyCTA() {
         right: 0,
         bottom: 0,
         zIndex: 1300,
-        bgcolor: "rgba(255,255,255,0.98)",
-        boxShadow: "0 -4px 12px rgba(15,23,42,0.18)",
-        py: 1.5,
+        bgcolor: "#FFFFFF",
+        boxShadow: "0 -8px 24px rgba(15,23,42,0.16)",
+        borderTop: "1px solid #E5E7EB",
+        py: 1,
       }}
     >
-      <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3 } }}>
-        <Stack spacing={1.2}>
-          {/* Linha com quantidade, preço e seletor */}
+      <Container maxWidth="sm" sx={{ px: { xs: 2, sm: 0 } }}>
+        <Stack spacing={1}>
+          {/* linha com quantidade / valor / seletor */}
           <Stack
             direction="row"
             alignItems="center"
@@ -251,13 +357,17 @@ function StickyCTA() {
             <Box>
               <Typography
                 variant="caption"
-                sx={{ fontSize: "0.8rem", color: "#6B7280" }}
+                sx={{ fontSize: "0.78rem", color: "#6B7280" }}
               >
                 {qty} Números
               </Typography>
               <Typography
                 variant="subtitle1"
-                sx={{ fontWeight: 700, fontSize: "1rem", color: "#111827" }}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                  color: "#111827",
+                }}
               >
                 {formatBRL(totalInCents / 100)}
               </Typography>
@@ -276,9 +386,11 @@ function StickyCTA() {
                 size="small"
                 sx={{
                   minWidth: 36,
-                  borderRadius: 2,
+                  borderRadius: 999,
                   px: 0,
                   fontWeight: 700,
+                  borderColor: "#D1D5DB",
+                  color: "#4B5563",
                 }}
               >
                 −
@@ -288,15 +400,19 @@ function StickyCTA() {
                 sx={{
                   px: 2,
                   py: 0.7,
-                  borderRadius: 2,
-                  border: "1px solid #E5E7EB",
+                  borderRadius: 999,
+                  border: "1px solid #D1D5DB",
                   minWidth: 64,
                   textAlign: "center",
                   bgcolor: "#F9FAFB",
                 }}
               >
                 <Typography
-                  sx={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: "0.9rem",
+                    color: "#111827",
+                  }}
                 >
                   {qty}
                 </Typography>
@@ -308,9 +424,11 @@ function StickyCTA() {
                 size="small"
                 sx={{
                   minWidth: 36,
-                  borderRadius: 2,
+                  borderRadius: 999,
                   px: 0,
                   fontWeight: 700,
+                  borderColor: "#D1D5DB",
+                  color: "#4B5563",
                 }}
               >
                 +
@@ -318,18 +436,19 @@ function StickyCTA() {
             </Box>
           </Stack>
 
-          {/* Botão principal */}
+          {/* botão principal */}
           <Button
             onClick={handleClick}
             variant="contained"
             fullWidth
             disabled={disabled}
             sx={{
-              fontWeight: 700,
-              borderRadius: 2,
-              py: 1.2,
-              fontSize: "0.95rem",
+              fontWeight: 800,
+              borderRadius: 999,
+              py: 1.1,
+              fontSize: "0.98rem",
               textTransform: "none",
+              letterSpacing: 0.3,
               bgcolor: disabled ? "#9CA3AF" : "#16A34A",
               "&:hover": {
                 bgcolor: disabled ? "#9CA3AF" : "#15803D",
