@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Box, Grid, IconButton, TextField, Button, Stack, Typography } from "@mui/material"
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline"
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
 import { formatBRL } from "@/lib/formatCurrency"
 import { useToast } from "./ui/Toast"
@@ -133,36 +133,6 @@ export default function QuantitySelector() {
       </Typography>
 
       <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-        <Button
-          fullWidth
-          variant="contained"
-          color="success"
-          onClick={() => router.push("/dados")}
-          disabled={qty < 100}
-          sx={{
-            py: 2,
-            borderRadius: 9999,
-            fontWeight: 700,
-            fontSize: "1rem",
-            boxShadow: "0px 8px 20px rgba(0, 0, 0, 0.18)",
-            background: "linear-gradient(90deg, #18a34a, #16c964)",
-            transition: "all 0.2s ease",
-            "&:hover:not(:disabled)": {
-              boxShadow: "0px 12px 28px rgba(0, 0, 0, 0.25)",
-              transform: "translateY(-2px)",
-            },
-          }}
-        >
-          <Box display="flex" flexDirection="column" lineHeight={1.2}>
-            <Typography variant="button" sx={{ fontWeight: 700 }}>
-              Continuar com esta quantidade
-            </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.9 }}>
-              Melhor opção para você avançar agora
-            </Typography>
-          </Box>
-        </Button>
-
         <Button
           fullWidth
           variant="outlined"

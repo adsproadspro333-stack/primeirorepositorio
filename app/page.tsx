@@ -10,6 +10,7 @@ import {
   Stack,
   Button,
 } from "@mui/material"
+import { useRouter } from "next/navigation"
 import HeroBanner from "./components/HeroBanner"
 import SalesProgress from "./components/SalesProgress"
 import QuantitySelector from "./components/QuantitySelector"
@@ -18,6 +19,8 @@ import WinnersList from "./components/WinnersList"
 import FooterLegal from "./components/FooterLegal"
 import SocialProofNotifications from "./components/SocialProofNotifications"
 import { trackViewContent } from "@/lib/fbq"
+import { useCartStore } from "@/store/cartStore"
+import { formatBRL } from "@/lib/formatCurrency"
 
 export default function HomePage() {
   useEffect(() => {
@@ -47,7 +50,8 @@ export default function HomePage() {
       {/* Hero com banner principal */}
       <HeroBanner />
 
-      <Container maxWidth="lg" sx={{ pb: 14, px: { xs: 2, sm: 3 } }}>
+      {/* padding-bottom maior por causa do CTA fixo */}
+      <Container maxWidth="lg" sx={{ pb: 18, px: { xs: 2, sm: 3 } }}>
         {/* Destaque de preço / headline de oferta */}
         <Paper
           elevation={3}
@@ -72,8 +76,8 @@ export default function HomePage() {
             variant="body1"
             sx={{ mt: 1, fontSize: { xs: "0.9rem", sm: "1rem" } }}
           >
-            Participe da CHRYS PRÊMIOS e concorra a prêmios reais com sorteio
-            baseado na Loteria Federal.
+            Garanta seus números na CHRYS PRÊMIOS e concorra a prêmios reais,
+            com sorteio baseado na Loteria Federal.
           </Typography>
         </Paper>
 
@@ -91,7 +95,7 @@ export default function HomePage() {
         >
           <Stack
             direction={{ xs: "column", sm: "row" }}
-            spacing={1}
+            spacing={1.5}
             justifyContent="space-between"
             alignItems={{ xs: "flex-start", sm: "center" }}
           >
@@ -99,8 +103,8 @@ export default function HomePage() {
               variant="body2"
               sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, color: "#1F2933" }}
             >
-              🔒 Pagamento 100% seguro via Pix. Seus dados são protegidos e seu
-              número é gerado automaticamente após a confirmação.
+              🔒 Pagamento 100% seguro via Pix. Seus dados são protegidos e seus
+              números são gerados automaticamente após a confirmação.
             </Typography>
             <Typography
               variant="body2"
@@ -110,8 +114,8 @@ export default function HomePage() {
                 textAlign: { xs: "left", sm: "right" },
               }}
             >
-              🎫 Sorteio com base no resultado da Loteria Federal. Transparência
-              total para acompanhar seus números.
+              🎫 Sorteio com base na Loteria Federal. Transparência total para
+              acompanhar as extrações e seus bilhetes.
             </Typography>
           </Stack>
         </Paper>
@@ -150,14 +154,14 @@ export default function HomePage() {
               fontSize: { xs: "0.8rem", sm: "0.9rem" },
             }}
           >
-            Quanto mais números, maiores são suas chances reais de ganhar. Você
-            acompanha todos os seus números em{" "}
+            Quanto mais números você garante, maiores são as suas chances reais
+            de ser o próximo ganhador. Depois da compra, acompanhe tudo em{" "}
             <strong>“Minhas compras”</strong>.
           </Typography>
 
           <Divider sx={{ mb: 2 }} />
 
-          {/* Controles existentes – mantidos exatamente como estão */}
+          {/* Controles existentes */}
           <QuantitySelector />
           <NumbersAdder />
         </Paper>
@@ -182,8 +186,8 @@ export default function HomePage() {
               fontSize: { xs: "0.8rem", sm: "0.9rem" },
             }}
           >
-            Confira quem já foi premiado na plataforma. Todos os sorteios são
-            registrados e conferidos.
+            Veja quem já garantiu prêmio com a CHRYS PRÊMIOS. Todos os sorteios
+            são auditáveis e vinculados às extrações oficiais.
           </Typography>
 
           <WinnersList initialCount={6} />
@@ -200,20 +204,27 @@ export default function HomePage() {
 }
 
 /**
- * Barra fixa inferior com botão de ação.
- * Não dispara pagamento, só leva o usuário de volta
- * à seção de compra (purchase-section), onde está
- * toda a lógica real (QuantitySelector + NumbersAdder).
+ * Barra fixa inferior com seletor clean e botão "Concorrer".
+ * Usa os mesmos dados do carrinho (qty/totalInCents) e leva para /dados.
  */
 function StickyCTA() {
+  const router = useRouter()
+  const { qty, totalInCents, handleChangeQuantity } = useCartStore()
+  const disabled = qty < 100
+  const MIN_QTY = 100
+
+  const inc = () => {
+    handleChangeQuantity(qty + 1) // se quiser outro passo, troca aqui
+  }
+
+  const dec = () => {
+    if (qty <= MIN_QTY) return
+    handleChangeQuantity(qty - 1)
+  }
+
   const handleClick = () => {
-    const el = document.getElementById("purchase-section")
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" })
-    } else {
-      // fallback: rola pro topo se não achar
-      window.scrollTo({ top: 0, behavior: "smooth" })
-    }
+    if (disabled) return
+    router.push("/dados")
   }
 
   return (
@@ -223,42 +234,109 @@ function StickyCTA() {
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 1300, // acima do conteúdo normal
+        zIndex: 1300,
         bgcolor: "rgba(255,255,255,0.98)",
         boxShadow: "0 -4px 12px rgba(15,23,42,0.18)",
         py: 1.5,
       }}
     >
       <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3 } }}>
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={2}
-          sx={{ justifyContent: "space-between" }}
-        >
-          <Box sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}>
-            <Typography
-              variant="caption"
-              sx={{ fontSize: "0.7rem", color: "#6B7280" }}
-            >
-              🎟 Escolha a quantidade de números e finalize o pagamento via Pix
-              com segurança.
-            </Typography>
-          </Box>
+        <Stack spacing={1.2}>
+          {/* Linha com quantidade, preço e seletor */}
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+          >
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: "0.8rem", color: "#6B7280" }}
+              >
+                {qty} Números
+              </Typography>
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: 700, fontSize: "1rem", color: "#111827" }}
+              >
+                {formatBRL(totalInCents / 100)}
+              </Typography>
+            </Box>
 
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+              }}
+            >
+              <Button
+                onClick={dec}
+                variant="outlined"
+                size="small"
+                sx={{
+                  minWidth: 36,
+                  borderRadius: 2,
+                  px: 0,
+                  fontWeight: 700,
+                }}
+              >
+                −
+              </Button>
+
+              <Box
+                sx={{
+                  px: 2,
+                  py: 0.7,
+                  borderRadius: 2,
+                  border: "1px solid #E5E7EB",
+                  minWidth: 64,
+                  textAlign: "center",
+                  bgcolor: "#F9FAFB",
+                }}
+              >
+                <Typography
+                  sx={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}
+                >
+                  {qty}
+                </Typography>
+              </Box>
+
+              <Button
+                onClick={inc}
+                variant="outlined"
+                size="small"
+                sx={{
+                  minWidth: 36,
+                  borderRadius: 2,
+                  px: 0,
+                  fontWeight: 700,
+                }}
+              >
+                +
+              </Button>
+            </Box>
+          </Stack>
+
+          {/* Botão principal */}
           <Button
             onClick={handleClick}
             variant="contained"
-            color="success"
             fullWidth
+            disabled={disabled}
             sx={{
               fontWeight: 700,
-              borderRadius: 999,
+              borderRadius: 2,
               py: 1.2,
-              fontSize: { xs: "0.9rem", sm: "1rem" },
+              fontSize: "0.95rem",
+              textTransform: "none",
+              bgcolor: disabled ? "#9CA3AF" : "#16A34A",
+              "&:hover": {
+                bgcolor: disabled ? "#9CA3AF" : "#15803D",
+              },
             }}
           >
-            CONCORRER AGORA
+            {disabled ? "Selecione pelo menos 100 números" : "Concorrer"}
           </Button>
         </Stack>
       </Container>

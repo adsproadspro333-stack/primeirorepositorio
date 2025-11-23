@@ -34,7 +34,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const getToastStyles = (type: ToastType, message: string) => {
     const messageIsVIP = isVIPMessage(message)
-    
+
     if (messageIsVIP) {
       return {
         background: "#F7F7F7",
@@ -43,7 +43,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         shadow: "0 4px 16px rgba(233, 198, 0, 0.15)",
         icon: "👑",
         isSemibold: true,
-        isVIP: true,
       }
     }
 
@@ -54,18 +53,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       shadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
       icon: "•",
       isSemibold: false,
-      isVIP: false,
     }
   }
 
   return (
     <ToastCtx.Provider value={{ show }}>
       {children}
-      <div className="fixed inset-x-0 bottom-3 z-[60] flex justify-center px-3 pointer-events-none">
+
+      {/* ✅ SUBIMOS BEM MAIS O TOAST */}
+      <div className="fixed inset-x-0 z-[60] flex justify-center px-3 pointer-events-none"
+           style={{ bottom: "180px" }}>
         <div className="w-full max-w-md space-y-2">
           {toasts.map((t) => {
             const styles = getToastStyles(t.type, t.message)
-            
+
             return (
               <div
                 key={t.id}
